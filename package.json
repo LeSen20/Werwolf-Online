@@ -1,0 +1,20 @@
+{
+  "name": "werwolf-online",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Werwolf-Kartenspiel: modulare Spiel-Engine und Hot-Seat-Oberfläche",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
