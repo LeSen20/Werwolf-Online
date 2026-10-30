@@ -17,7 +17,9 @@ Die Bots laufen komplett offline: kein KI-Dienst, kein API-Schlüssel, keine Lim
 
 Bots bekommen bei jeder Partie neue Benutzernamen, wie Menschen sie sich ausdenken: `le_na3`, `jonas2003`, `muede_katze`, `nachteule7`, `ShadowFox92`, `xXFrostXx`, `TheRealPaula`. Auch die Persönlichkeit hinter einem Namen wechselt. Ausgeschlossen sind Rollenwörter (z.B. "wolf", "hexe"), "bot" und einschlägige Zahlen (14, 18, 28, 88) sowie 69, 420 und 666. Die Namen einer Partie unterscheiden sich auch in ihren Kurzformen.
 
-Bots verstehen Kurzformen, wie Menschen sie schreiben (`le_sen1` als "lesen", `jonas2003` als "jonas", `xXFrostXx` als "frost"), und kürzen selbst ab. Lockere Typen tun das öfter. Selbst eingetippte Bot-Namen bleiben erhalten, "Neue Bot-Namen" würfelt alle neu. Tippfehler in Namen erkennen die Bots nicht.
+Bots verstehen Kurzformen, wie Menschen sie schreiben (`le_sen1` als "lesen", `jonas2003` als "jonas", `xXFrostXx` als "frost"), und kürzen selbst ab. Lockere Typen tun das öfter. Selbst eingetippte Bot-Namen bleiben erhalten, "Neue Bot-Namen" würfelt alle neu.
+
+Vertippte Namen ("lesne", "jonsa", "nachtuele") erkennen Bots auch, aber nur dort, wo sicher ein Name gemeint ist: als Anrede ("jonsa, bist du ...?", "..., jonsa?", "@jonsa", "hey jonsa") oder in Sätzen mit Anschuldigung, Verteidigung oder Stimme. Erlaubt ist ein Fehler bei Namen mit 4 bis 6 Zeichen und zwei ab 7 Zeichen, der erste Buchstabe muss stimmen. Häufige Wörter ("leben", "noch") gelten nie als Name, und passt ein Wort zu zwei Spielern gleich gut, raten Bots nicht.
 
 ## Wie die Bots denken
 
@@ -53,7 +55,7 @@ In einem gemischten Rudel folgen Bot-Werwölfe der Wahl des Menschen, damit die 
 
 ## Übersetzer
 
-Der Übersetzer erkennt die Sprache einer Nachricht, übersetzt sie für die Bots ins Englische und deren Antworten zurück. Spielernamen bleiben dabei erhalten; geht ein Name verloren, schickt der Bot seine Nachricht unübersetzt. Namen aus echten Wörtern (z.B. `sleepy_panda`) kann ein Übersetzer mitübersetzen, dann kommt die Nachricht ebenfalls unübersetzt. Welcher Übersetzer verwendet wird:
+Der Übersetzer erkennt die Sprache einer Nachricht, übersetzt sie für die Bots ins Englische und deren Antworten zurück. Spielernamen werden vor dem Übersetzen durch Platzhalter (`ZQX1`) ersetzt und danach wieder eingesetzt, so bleiben auch Namen aus echten Wörtern wie `sleepy_panda` erhalten. Übersteht ein Platzhalter die Übersetzung nicht, wird ohne Platzhalter übersetzt und das Ergebnis nur genommen, wenn alle Namen erhalten sind; sonst schickt der Bot seine Nachricht unübersetzt. Dieses Verfahren ist nur mit nachgebauten Übersetzern getestet, nicht mit Chrome oder LibreTranslate. Antwortet der Browser-Übersetzer nicht (z.B. weil er keine Sprachpakete laden kann), gibt das Spiel nach 5 Sekunden auf, schickt die Nachricht unübersetzt und versucht es erst nach einer Minute oder beim nächsten eigenen Senden erneut. Welcher Übersetzer verwendet wird:
 
 1. LibreTranslate, falls in der Vorbereitung eine Adresse eingetragen ist
 2. sonst der im Browser eingebaute Übersetzer, falls vorhanden

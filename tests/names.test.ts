@@ -64,4 +64,29 @@ describe('Bot-Namen', () => {
       expect.objectContaining({ kind: 'accuse', targetId: 'p2' }),
     ]);
   });
+
+  it('erkennt vertippte Namen, aber nur wo sicher ein Name gemeint ist', () => {
+    const players = [
+      { id: 'p1', name: 'Anna' },
+      { id: 'p2', name: 'le_sen1' },
+      { id: 'p3', name: 'jonas2003' },
+      { id: 'p4', name: 'nachteule7' },
+      { id: 'p5', name: 'ShadowFox92' },
+      { id: 'p6', name: 'Lena' },
+      { id: 'p7', name: 'Lina' },
+    ];
+    const roles = [{ id: 'werewolf', name: 'Werwolf' }];
+    const read = (text: string) => extractClaimsOffline(text, 'p1', players, roles);
+    expect(read('lesne ist ein Werwolf').claims).toEqual([expect.objectContaining({ kind: 'accuse', targetId: 'p2' })]);
+    expect(read('ich stimme für jonsa').claims).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'vote', targetId: 'p3' })]));
+    expect(read('nachtuele lügt').claims).toEqual([expect.objectContaining({ kind: 'accuse', targetId: 'p4' })]);
+    expect(read('shadowfx, bist du ein Werwolf?').addressed).toEqual(['p5']);
+    expect(read('was denkst du, jonsa?').addressed).toEqual(['p3']);
+    expect(read('hey lesne wie gehts').addressed).toEqual(['p2']);
+    // Gewöhnliche Wörter bleiben Wörter, ohne Anrede oder Anschuldigung wird nichts geraten.
+    expect(read('der Werwolf will leben').claims).toEqual([]);
+    expect(read('jonsa war heute ruhig').addressed).toEqual([]);
+    // Mehrdeutig (lyna: Lena oder Lina?) wird nicht geraten.
+    expect(read('lyna ist verdächtig').claims).toEqual([]);
+  });
 });

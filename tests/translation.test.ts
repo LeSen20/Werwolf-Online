@@ -93,7 +93,42 @@ describe('Separater Übersetzer', () => {
       translate: async (text) => text.replace('Rose', 'Rosa'),
     };
     expect(await translateKeepingNames(translator, 'Ich verdächtige Ben.', 'de', 'it', ['Ben', 'Rose'])).toBe('Ich verdächtige Ben.');
-    expect(await translateKeepingNames(translator, 'Ich verdächtige Rose.', 'de', 'it', ['Ben', 'Rose'])).toBeNull();
+    // Namen werden über Platzhalter geschützt, auch wenn der Übersetzer sie sonst verändern würde.
+    expect(await translateKeepingNames(translator, 'Ich verdächtige Rose.', 'de', 'it', ['Ben', 'Rose'])).toBe('Ich verdächtige Rose.');
     expect(await detectLanguage(translator, 'I think so')).toBe('en');
+  });
+
+  it('Platzhalter: tolerant beim Zurücksetzen, sonst Rückfall auf Namensprüfung', async () => {
+    const names = ['sleepy_panda', 'tim', 'Rose'];
+    // Übersetzer, der Namen aus echten Wörtern mitübersetzt und Platzhalter leicht verändert.
+    const sloppy: Translator = {
+      name: 'sloppy',
+      canTranslate: true,
+      detect: async () => null,
+      translate: async (text) => text.replace('sleepy_panda', 'panda_endormi').replace(/ZQX(\d)/g, 'zqx $1').replace('Ich stimme für', 'Je vote pour'),
+    };
+    expect(await translateKeepingNames(sloppy, 'Ich stimme für sleepy_panda und tim.', 'de', 'fr', names)).toBe('Je vote pour sleepy_panda und tim.');
+    // Übersetzer, der Platzhalter verschluckt: ohne Platzhalter erneut, Ergebnis nur mit allen Namen.
+    const dropping = (rename: boolean): Translator => ({
+      name: 'dropping',
+      canTranslate: true,
+      detect: async () => null,
+      translate: async (text) => (text.includes('ZQX') ? text.replace(/ZQX\d+/g, '') : rename ? text.replace('Rose', 'Rosa') : text),
+    });
+    expect(await translateKeepingNames(dropping(false), 'Rose lügt.', 'de', 'it', names)).toBe('Rose lügt.');
+    expect(await translateKeepingNames(dropping(true), 'Rose lügt.', 'de', 'it', names)).toBeNull();
+  });
+
+  it('Browser-Übersetzer hängt nicht, wenn der Browser nicht antwortet', async () => {
+    const never = () => new Promise<never>(() => {});
+    const scope = { Translator: { availability: never, create: never }, LanguageDetector: { create: never } };
+    const translator = new BrowserTranslator(scope, { timeoutMs: 100 });
+    expect(await translator.translate('Hallo', 'de', 'fr')).toBeNull();
+    expect(await translator.detect('Bonjour tout le monde')).toBeNull();
+    // Danach wird nicht bei jeder Nachricht erneut gewartet.
+    const start = Date.now();
+    expect(await translator.translate('Hallo', 'de', 'fr')).toBeNull();
+    expect(await translator.detect('Bonjour tout le monde')).toBeNull();
+    expect(Date.now() - start).toBeLessThan(50);
   });
 });

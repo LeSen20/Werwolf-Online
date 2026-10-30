@@ -137,6 +137,9 @@ describe('Partien mit Bots', () => {
     ok(game.dispatch({ type: 'CHAT', playerId: 'p1', text: 'lesen, bist du ein Werwolf?' }));
     await bots.settle();
     expect(chatOf(game, 'p2').at(-1) ?? '').toMatch(/dorfbewohner/i);
+    ok(game.dispatch({ type: 'CHAT', playerId: 'p1', text: 'jonsa, bist du ein Werwolf?' }));
+    await bots.settle();
+    expect(chatOf(game, 'p3').at(-1) ?? '').toMatch(/dorfbewohner/i);
 
     // Reine Bot-Partie mit erzeugten Namen: läuft durch, Kurzformen tauchen im Chat auf.
     const random = createRandom(5);

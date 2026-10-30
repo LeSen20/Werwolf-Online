@@ -15,6 +15,7 @@ import type { Command, DispatchResult, Game, GameEvent, PlayerId } from '../engi
 import { basicTranslator, detectLanguage, translateKeepingNames, type Translator } from '../translation';
 import { ClaimStore, extractClaimsOffline, findMentions, questionTopic, shortNames, type Named } from './claims';
 import { renderIntent, styleMessage, type TemplateLanguage } from './language';
+import { nameAliases } from './names';
 import { createRandom, pickRandom, shuffled, type Random } from './random';
 import {
   chooseVote,
@@ -225,7 +226,8 @@ export class BotController {
       if (language) this.language = language;
       let analysis = message;
       if (language && language !== 'de' && language !== 'en' && this.translator.canTranslate) {
-        analysis = (await this.translator.translate(message, language, 'en').catch(() => null)) ?? message;
+        const names = players.flatMap((p) => nameAliases(p.name));
+        analysis = (await translateKeepingNames(this.translator, message, language, 'en', names)) ?? message;
       }
       const extracted = extractClaimsOffline(analysis, speakerId, players, roles);
       this.claims.add(...extracted.claims.map((draft): Claim => ({ ...draft, speakerId, round: event.round, eventId: event.id })));

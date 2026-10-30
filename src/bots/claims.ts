@@ -62,7 +62,42 @@ const VOTE = /(stimme für|stimme fuer|wähle|waehle|vote for|voting for|\bvote\
 const SEEN = /(gesehen|geprüft|geprueft|angeschaut|untersucht|checked|\bsaw\b|\bseen\b|inspected|looked at)/u;
 const ROLE_CLAIM = /\b(?:ich bin|bin ich|i am|i'm|im)\s+(?:der |die |das |ein |eine |the |a |an )?(\p{L}+)/gu;
 
+const CLAIM_WORDS = [WOLF, SUSPECT, INNOCENT, VOTE, SEEN];
+const CLAUSES = /[.!?;\n]|,|\bund\b|\band\b|\baber\b|\bbut\b/u;
+/** Stellen, an denen ein Wort sicher ein Name ist: Anrede am Anfang oder Ende, @name, "hey name". */
+const VOCATIVES = [/^\s*@?([\p{L}\p{N}_]+)\s*[,:]/gu, /,\s*@?([\p{L}\p{N}_]+)\s*[?!.]*\s*$/gu, /@([\p{L}\p{N}_]+)/gu, /\b(?:hey|hi|hallo|hello|yo)\s+([\p{L}\p{N}_]+)/gu];
+/** Häufige Wörter, die nie als vertippter Name gelten. */
+const COMMON_WORDS = new Set(
+  (
+    'aber alle allem allen aller alles also anders andere anderen auch bald beim bist bitte bleib bleibt damit dann danke dass davon dein deine deinen ' +
+    'denn dich dies diese diesem diesen dieser dieses doch dort durch eben echt eher eigentlich einen einem einer eines ende erst etwas euch euer eure ' +
+    'fast finde finden frage fragen frust ganz gegen geht gehen gerade gern gerne gesagt gestern gestorben gibt glaube glauben gleich grund habe haben ' +
+    'hast hatte heute hier hilft immer jede jeder jemand jetzt kann kannst kein keine keinen klar komm kommt lass lasst leben lesen leute lieber ' +
+    'macht machen mehr mein meine meinen mich morgen muss musst nach nacht nachteil nachteile nein nicht nichts noch nochmal oder ohne okay recht ruhig ' +
+    'runde sagen sagt schon sehr sein seine selbst sich sicher sind soll sollen sonst spiel spieler still stimme stimmen stimmt total tote toten ' +
+    'ueber über unser unsere viel viele vielleicht voll vorher wahr wann warum warst weil weiss weiß wenn werde werden wieder wieso will wird wirklich ' +
+    'wohl wollen wurde ziemlich zwei zusammen ' +
+    'about after again also always anyone anything because been before being believe both came come could dead does done down each even every ' +
+    'everyone feel find first from give good guess have help here honest just keep kill killed know last like look made make many maybe more most ' +
+    'much must need never nice night nine nobody nothing only other over people player please pretty quiet really right said same says seems should ' +
+    'since some someone something sorry still sure take talk tell than thank thanks that their them then there these they thing think this those ' +
+    'though today told true trust very vote voted want wait well were what when where which while will with without would yeah your yours'
+  ).split(' '),
+);
+
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Editierdistanz mit Vertauschung benachbarter Zeichen ("jonsa" -> "jonas" = 1). */
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+  }
+  return d[a.length][b.length];
+}
 
 interface MentionForm {
   id: PlayerId;
@@ -93,6 +128,47 @@ const mentionPattern = (form: string, flags = 'u') => new RegExp(`(^|[^\\p{L}\\p
 function mentionsIn(lower: string, forms: readonly MentionForm[], players: readonly Named[], excludeId?: PlayerId): PlayerId[] {
   const found = new Set(forms.filter((f) => f.id !== excludeId && mentionPattern(f.form).test(lower)).map((f) => f.id));
   return players.filter((p) => found.has(p.id)).map((p) => p.id);
+}
+
+/** Erlaubte Tippfehler je Länge der Nennform; kurze Namen nur exakt. */
+const allowedTypos = (length: number) => (length >= 7 ? 2 : length >= 4 ? 1 : 0);
+
+/** Spieler, den ein vertipptes Wort meint: gleicher Anfangsbuchstabe, wenige Fehler, eindeutig. */
+function typoTarget(token: string, forms: readonly MentionForm[]): PlayerId | null {
+  if (token.length < 4 || COMMON_WORDS.has(token) || Object.values(ROLE_WORDS).some((words) => words.includes(token))) return null;
+  let best = Infinity;
+  const ids = new Set<PlayerId>();
+  for (const { id, form } of forms) {
+    const max = allowedTypos(form.length);
+    if (max === 0 || form[0] !== token[0] || Math.abs(form.length - token.length) > max) continue;
+    const distance = editDistance(token, form);
+    if (distance === 0 || distance > max || distance > best) continue;
+    if (distance < best) ids.clear();
+    best = distance;
+    ids.add(id);
+  }
+  return ids.size === 1 ? [...ids][0] : null;
+}
+
+/**
+ * Vertippte Namen ("lesne" für le_sen1) als zusätzliche Nennformen. Nur an Stellen, an denen
+ * ein Name sicher gemeint ist (Anrede) oder in Sätzen mit Anschuldigung, Verteidigung oder
+ * Stimme, damit gewöhnliche Wörter nicht zu Namen werden.
+ */
+function typoForms(lower: string, forms: readonly MentionForm[], speakerId: PlayerId): MentionForm[] {
+  const exact = maskNames(lower, forms);
+  const vocatives = new Set(VOCATIVES.flatMap((pattern) => [...exact.matchAll(pattern)].map((match) => match[1])));
+  const result: MentionForm[] = [];
+  for (const clause of exact.split(CLAUSES)) {
+    for (const token of new Set(clause.match(/[\p{L}\p{N}_]+/gu) ?? [])) {
+      if (result.some((r) => r.form === token)) continue;
+      const rest = clause.replace(mentionPattern(token, 'gu'), '$1#');
+      if (!vocatives.has(token) && !CLAIM_WORDS.some((pattern) => pattern.test(rest))) continue;
+      const id = typoTarget(token, forms);
+      if (id && id !== speakerId) result.push({ id, form: token });
+    }
+  }
+  return result;
 }
 
 /** Ersetzt Namen durch "#", damit Namen wie "Wolfgang" keine Schlüsselwörter auslösen. */
@@ -129,7 +205,8 @@ function roleFromWord(word: string, roles: readonly Named[]): RoleId | null {
 
 export function extractClaimsOffline(text: string, speakerId: PlayerId, players: readonly Named[], roles: readonly Named[]): ExtractedMessage {
   const lower = text.toLowerCase();
-  const forms = mentionForms(players);
+  const exactForms = mentionForms(players);
+  const forms = [...exactForms, ...typoForms(lower, exactForms, speakerId)].sort((a, b) => b.form.length - a.form.length);
   const masked = maskNames(lower, forms);
   const claims: ClaimDraft[] = [];
 
@@ -143,7 +220,7 @@ export function extractClaimsOffline(text: string, speakerId: PlayerId, players:
   }
   const seerTalk = claimedRole === 'seer' || SEEN.test(masked);
 
-  for (const clause of lower.split(/[.!?;\n]|,|\bund\b|\band\b|\baber\b|\bbut\b/u)) {
+  for (const clause of lower.split(CLAUSES)) {
     const bare = maskNames(clause, forms);
     for (const targetId of mentionsIn(clause, forms, players, speakerId)) {
       const negated = NEGATION.test(bare);
