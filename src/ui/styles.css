@@ -2,6 +2,18 @@
  * Retro-Design passend zur Pixelgrafik: Pixelschrift, eckige Formen, harte Schatten ohne Unschärfe.
  * Farben als Tokens, Hintergrundbilder kommen aus src/ui/assets.ts.
  */
+
+/*
+ * Righteous (Otter and Bench): Pixelschrift mit 8 Pixeln pro em, scharf nur bei 8, 16, 24, 32 px.
+ * Ihr fehlen u.a. ä ö ü ß; diese Zeichen kommen aus der Pixelify Sans, font-size-adjust gleicht
+ * die x-Höhe an (Righteous: 0.625).
+ */
+@font-face {
+  font-family: 'Righteous';
+  src: url('./fonts/Righteous.ttf') format('truetype');
+  font-display: swap;
+}
+
 :root {
   --bg: #efe9dd;
   --surface: #fffdf8;
@@ -18,7 +30,9 @@
   /* Kräftige Umrisse und harte Schatten im Retro-Stil. */
   --line: #22201c;
   --shadow: rgba(34, 32, 28, 0.35);
-  font-family: 'Pixelify Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Righteous', 'Pixelify Sans', system-ui, sans-serif;
+  --font-body: 'Pixelify Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   font-size: 17px;
   line-height: 1.35;
   /* Die Ligaturen der Pixelschrift (fi, fl) sind schlecht lesbar. */
@@ -100,9 +114,19 @@ body::before {
   flex-direction: column;
 }
 
+/* Righteous für Logo und Überschriften, immer in ganzzahligen Vielfachen von 8 px. Fließtext,
+   Knöpfe und Chat bleiben in der Pixelify Sans: Righteous wäre dafür bei 8 px zu klein, bei 16 px zu groß. */
+.logo-text,
+.panel h2,
+.actor h3,
+.prompt h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size-adjust: 0.625;
+}
+
 .logo-text {
-  font-weight: 700;
-  font-size: 1.6rem;
+  font-size: 24px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   text-shadow: 2px 2px 0 var(--shadow);
@@ -133,7 +157,7 @@ body::before {
 
 .panel h2 {
   margin: 0 0 12px;
-  font-size: 1.25rem;
+  font-size: 16px;
 }
 
 .actor {
@@ -145,6 +169,7 @@ body::before {
 .actor h3,
 .prompt h3 {
   margin: 4px 0 8px;
+  font-size: 16px;
 }
 
 .actions {
