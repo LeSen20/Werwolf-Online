@@ -45,6 +45,8 @@ export interface PlayerSummary {
   faction: Faction | null;
   /** Wissen über den Spieler, z.B. "Werwolf" oder "Verliebt". */
   labels: string[];
+  /** Dasselbe Wissen maschinenlesbar, z.B. 'werewolf-pack', 'lover', 'couple'. */
+  relations: string[];
   /** Todesursache, erst am Spielende sichtbar. */
   deathCause: string | null;
 }
@@ -91,7 +93,7 @@ export interface PublicView {
   time: TimeOfDay | null;
   players: PlayerSummary[];
   /** Rollen im Spiel (öffentlich, wie beim Kartenspiel üblich). */
-  deck: Array<{ roleId: RoleId; name: string; count: number }>;
+  deck: Array<{ roleId: RoleId; name: string; faction: Faction; count: number }>;
   nightStep: { id: string; label: string } | null;
   deathDecisions: Array<{ playerId: PlayerId; name: string; abilityName: string }>;
   vote: VoteView | null;
@@ -128,20 +130,26 @@ function isVisible(event: GameEvent, viewerId: PlayerId | null): boolean {
   return false;
 }
 
-function collectKnowledge(ctx: EngineContext, viewer: PlayerState): Map<PlayerId, string[]> {
-  const known = new Map<PlayerId, string[]>();
+interface Known {
+  labels: string[];
+  relations: string[];
+}
+
+function collectKnowledge(ctx: EngineContext, viewer: PlayerState): Map<PlayerId, Known> {
+  const known = new Map<PlayerId, Known>();
   for (const rule of ctx.registry.rules) {
     for (const info of rule.knowledge?.(ctx, viewer) ?? []) {
       if (info.playerId === viewer.id) continue;
-      const labels = known.get(info.playerId) ?? [];
-      if (!labels.includes(info.label)) labels.push(info.label);
-      known.set(info.playerId, labels);
+      const entry = known.get(info.playerId) ?? { labels: [], relations: [] };
+      if (!entry.labels.includes(info.label)) entry.labels.push(info.label);
+      if (info.kind && !entry.relations.includes(info.kind)) entry.relations.push(info.kind);
+      known.set(info.playerId, entry);
     }
   }
   return known;
 }
 
-function summarize(ctx: EngineContext, player: PlayerState, viewer: PlayerState | null, known: Map<PlayerId, string[]>): PlayerSummary {
+function summarize(ctx: EngineContext, player: PlayerState, viewer: PlayerState | null, known: Map<PlayerId, Known>): PlayerSummary {
   const dealt = player.roleId !== '';
   let role: RoleInfo | null = null;
   let faction: Faction | null = null;
@@ -158,7 +166,8 @@ function summarize(ctx: EngineContext, player: PlayerState, viewer: PlayerState 
     alive: player.alive,
     role,
     faction: role?.faction ?? faction,
-    labels: known.get(player.id) ?? [],
+    labels: known.get(player.id)?.labels ?? [],
+    relations: known.get(player.id)?.relations ?? [],
     deathCause: ctx.state.phase === 'GAME_OVER' && player.death ? ctx.registry.causeLabel(player.death.cause) : null,
   };
 }
@@ -192,7 +201,7 @@ export function buildPrompt(ctx: EngineContext, pending: PendingDecision): Decis
 
 function buildBaseView(ctx: EngineContext, viewer: PlayerState | null): PublicView {
   const state = ctx.state;
-  const known = viewer && viewer.roleId ? collectKnowledge(ctx, viewer) : new Map<PlayerId, string[]>();
+  const known = viewer && viewer.roleId ? collectKnowledge(ctx, viewer) : new Map<PlayerId, Known>();
   const vote = state.phase === 'DAY_VOTING' ? state.vote : null;
   return {
     phase: state.phase,
@@ -200,7 +209,12 @@ function buildBaseView(ctx: EngineContext, viewer: PlayerState | null): PublicVi
     round: state.round,
     time: state.time,
     players: state.players.map((p) => summarize(ctx, p, viewer, known)),
-    deck: Object.entries(state.config.roles).map(([roleId, count]) => ({ roleId, name: ctx.roleName(roleId), count })),
+    deck: Object.entries(state.config.roles).map(([roleId, count]) => ({
+      roleId,
+      name: ctx.roleName(roleId),
+      faction: ctx.registry.getRole(roleId).faction,
+      count,
+    })),
     nightStep: state.phase === 'NIGHT_ACTIONS' && state.night?.step ? { id: state.night.step.id, label: state.night.step.label } : null,
     deathDecisions:
       state.phase === 'DEATH_RESOLUTION'

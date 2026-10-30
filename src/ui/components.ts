@@ -1,5 +1,5 @@
 import { FACTION_LABELS, type DecisionPrompt, type GameEvent, type PlayerId, type PlayerSummary, type PlayerView, type RoleInfo } from '../engine';
-import { ASSETS, assetUrl } from './assets';
+import { ASSETS, assetUrl, type IconKey } from './assets';
 import { button, h, type Child } from './dom';
 
 export type Theme = 'setup' | 'night' | 'day' | 'gameOver';
@@ -34,6 +34,40 @@ export function roleCard(role: RoleInfo | null, size: 'small' | 'large' = 'large
   );
 }
 
+/** Symbol aus ASSETS.icons oder Textersatz. */
+export function icon(key: IconKey, fallback: string): HTMLElement {
+  const path = ASSETS.icons[key];
+  return path ? h('img', { class: 'icon', src: assetUrl(path), alt: fallback }) : h('span', { class: 'icon-text' }, fallback);
+}
+
+/** Avatar aus ASSETS.avatars oder farbiger Kreis mit Anfangsbuchstaben. */
+export function avatar(name: string, avatarKey: string | null): HTMLElement {
+  const path = avatarKey ? ASSETS.avatars[avatarKey] : undefined;
+  if (path) return h('img', { class: 'avatar', src: assetUrl(path), alt: name });
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return h('span', { class: 'avatar avatar-placeholder', style: `--avatar-hue: ${hash % 360}`, 'aria-hidden': 'true' }, name.charAt(0).toUpperCase());
+}
+
+export interface ChatLine {
+  id: number;
+  speaker: string;
+  avatarKey: string | null;
+  text: string;
+}
+
+export function chatLog(lines: ChatLine[], typing: string[]): HTMLElement {
+  return h(
+    'div',
+    { class: 'chat-log', id: 'chat-log' },
+    lines.length === 0 ? h('p', { class: 'hint' }, 'Noch keine Nachrichten.') : null,
+    lines.map((line) =>
+      h('div', { class: 'chat-line' }, avatar(line.speaker, line.avatarKey), h('div', null, h('strong', null, line.speaker), h('p', null, line.text))),
+    ),
+    h('p', { class: 'hint typing', id: 'typing' }, typing.length > 0 ? `${typing.join(', ')} ${typing.length === 1 ? 'tippt' : 'tippen'} ...` : ''),
+  );
+}
+
 export function playerList(players: PlayerSummary[]): HTMLElement {
   return h(
     'ul',
@@ -44,8 +78,10 @@ export function playerList(players: PlayerSummary[]): HTMLElement {
         { class: `player${p.alive ? '' : ' dead'}` },
         h('span', { class: 'player-name' }, p.name),
         p.role ? h('span', { class: 'tag' }, p.role.name) : p.faction ? h('span', { class: 'tag' }, FACTION_LABELS[p.faction]) : null,
+        p.relations.includes('werewolf-pack') ? icon('pack', '') : null,
+        p.relations.includes('lover') || p.relations.includes('couple') ? icon('lover', '') : null,
         p.labels.map((label) => h('span', { class: 'tag tag-info' }, label)),
-        p.alive ? null : h('span', { class: 'tag tag-dead' }, p.deathCause ? `tot: ${p.deathCause}` : 'tot'),
+        p.alive ? null : h('span', { class: 'tag tag-dead' }, icon('dead', ''), p.deathCause ? `tot: ${p.deathCause}` : 'tot'),
       ),
     ),
   );

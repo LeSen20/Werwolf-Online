@@ -141,6 +141,8 @@ export interface WinCondition {
 export interface KnownInfo {
   playerId: PlayerId;
   label: string;
+  /** Maschinenlesbare Art, z.B. 'werewolf-pack' oder 'lover' (für Bots und spätere Clients). */
+  kind?: string;
 }
 
 /**

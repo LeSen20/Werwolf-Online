@@ -6,9 +6,10 @@ Eine Rolle ist eine reine Beschreibung (`defineRole`). Die Engine liest diese Be
 
 1. Datei `src/roles/<rolle>.ts` anlegen und die Rolle mit `defineRole({...})` beschreiben (Beispiel unten).
 2. In `src/roles/index.ts` importieren und in `BASE_ROLES` eintragen. Ab dann ist sie in der Spielkonfiguration und in der Oberfläche auswählbar.
-3. Optional: Kartengrafik in `src/ui/assets.ts` eintragen (sonst Platzhalter).
-4. Test in `tests/` schreiben. Vorlage: `tests/extensibility.test.ts` (Beschützer und Narr).
-5. `npm test` und `npm run typecheck` ausführen.
+3. Optional: Kartengrafik in `src/ui/assets.ts` eintragen (sonst Platzhalter, Formate in [assets.md](assets.md)).
+4. Optional: Bot-Verhalten mit `registerBotAbility` (siehe [bots.md](bots.md)). Ohne Strategie wählen Bots zufällig unter den gültigen Zielen.
+5. Test in `tests/` schreiben. Vorlage: `tests/extensibility.test.ts` (Beschützer und Narr).
+6. `npm test` und `npm run typecheck` ausführen.
 
 ## Beispiel: Beschützer
 

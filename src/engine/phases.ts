@@ -11,6 +11,7 @@
  * weitergeht, steht in state.continuation.
  */
 import { submitDecision, timeoutAllPending } from './actions';
+import { postChat } from './chat';
 import type { EngineContext } from './context';
 import { processDeathQueue, revealText } from './deaths';
 import { dealRoles } from './distribution';
@@ -36,9 +37,9 @@ export const PHASE_SPECS: Record<Phase, PhaseSpec> = {
   NIGHT_RESOLUTION: { commands: [], next: ['DEATH_RESOLUTION'] },
   DEATH_RESOLUTION: { commands: ['USE_ABILITY', 'TIMEOUT', 'ABORT'], next: ['WIN_CHECK'] },
   WIN_CHECK: { commands: [], next: ['DAY_ANNOUNCEMENT', 'NIGHT_START'] },
-  DAY_ANNOUNCEMENT: { commands: ['ADVANCE', 'TIMEOUT', 'ABORT'], next: ['DAY_DISCUSSION'] },
-  DAY_DISCUSSION: { commands: ['ADVANCE', 'TIMEOUT', 'ABORT'], next: ['DAY_VOTING'] },
-  DAY_VOTING: { commands: ['VOTE', 'ADVANCE', 'TIMEOUT', 'ABORT'], next: ['VOTE_RESOLUTION'] },
+  DAY_ANNOUNCEMENT: { commands: ['ADVANCE', 'TIMEOUT', 'CHAT', 'ABORT'], next: ['DAY_DISCUSSION'] },
+  DAY_DISCUSSION: { commands: ['ADVANCE', 'TIMEOUT', 'CHAT', 'ABORT'], next: ['DAY_VOTING'] },
+  DAY_VOTING: { commands: ['VOTE', 'CHAT', 'ADVANCE', 'TIMEOUT', 'ABORT'], next: ['VOTE_RESOLUTION'] },
   VOTE_RESOLUTION: { commands: [], next: ['DAY_VOTING', 'DEATH_RESOLUTION'] },
   GAME_OVER: { commands: [], next: [] },
 };
@@ -139,6 +140,9 @@ export function handleCommand(ctx: EngineContext, command: Command): void {
       break;
     case 'VOTE':
       if (castVote(ctx, command) && !ctx.rules.allowVoteChange) transition(ctx, 'VOTE_RESOLUTION');
+      break;
+    case 'CHAT':
+      postChat(ctx, command);
       break;
     case 'TIMEOUT':
       ctx.debug(`Zeitablauf in Phase ${phase}`);

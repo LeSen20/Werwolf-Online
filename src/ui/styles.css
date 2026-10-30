@@ -46,8 +46,18 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--text);
-  background: var(--bg) var(--bg-image, none) center / cover fixed;
+  background: var(--bg);
   transition: background-color 0.4s;
+}
+
+/* Hintergrundbild als feste Ebene: background-attachment: fixed mit cover funktioniert auf iOS nicht. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg-image, none) center / cover no-repeat;
 }
 
 .app {
@@ -330,8 +340,9 @@ select {
 }
 
 .card img {
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   object-fit: cover;
 }
 
@@ -432,4 +443,72 @@ select {
 
 .event-players {
   font-style: italic;
+}
+
+/* ---- Bots und Chat ---- */
+.bot-toggle {
+  flex: none;
+  font-size: 0.85rem;
+}
+
+.chat-log {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.chat-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.chat-line p {
+  margin: 2px 0 0;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex: none;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+  background: hsl(var(--avatar-hue, 200) 45% 42%);
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-input input {
+  flex: 1;
+}
+
+.typing {
+  min-height: 1.2em;
+  margin: 0;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+
+.icon-text:empty {
+  display: none;
 }

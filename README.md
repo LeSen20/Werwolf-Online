@@ -1,6 +1,6 @@
 # Werwolf-Online
 
-Digitale Umsetzung des Kartenspiels Werwolf: eine modulare, getestete Spiel-Engine (TypeScript, ohne UI-Abhängigkeit) und eine spielbare Hot-Seat-Oberfläche mit Grafik-Platzhaltern.
+Digitale Umsetzung des Kartenspiels Werwolf: eine modulare, getestete Spiel-Engine (TypeScript, ohne UI-Abhängigkeit), Offline-Bots mit Chat und eine spielbare Hot-Seat-Oberfläche mit Grafik-Platzhaltern.
 
 ## Schnellstart
 
@@ -27,12 +27,15 @@ Benötigt Node.js 22.12 oder neuer.
 | Ansichten | `src/engine/views.ts` | pro Spieler nur erlaubte Informationen |
 | Rollen | `src/roles/*.ts` | je Rolle eine Datei, Katalog in `src/roles/index.ts` |
 | Sonderregeln | `src/rules/*.ts` | z.B. gemischtes Liebespaar |
+| Chat | `src/engine/chat.ts` | Tagesgespräch als Befehl `CHAT` |
+| Bots | `src/bots/*` | Bot-Spieler: Verdacht, Fähigkeiten, Abstimmung, Chat ([docs/bots.md](docs/bots.md)) |
+| Übersetzer | `src/translation/*` | Spracherkennung und Übersetzung für den Chat |
 | UI Layer | `src/ui/*` | Hot-Seat-Oberfläche, keine eigenen Spielregeln |
 
 Prinzipien:
 
 - Der Spielzustand ist reines JSON. Partien lassen sich speichern (`snapshot()`), übertragen und fortsetzen (`Game.restore()`).
-- Jede Eingabe ist ein Befehl (`START_GAME`, `ADVANCE`, `USE_ABILITY`, `VOTE`, `TIMEOUT`, `ABORT`). Er wird auf einer Kopie ausgeführt und nur bei Erfolg übernommen. Ungültige Befehle liefern einen Fehlercode und eine deutsche Meldung, der Zustand bleibt unverändert.
+- Jede Eingabe ist ein Befehl (`START_GAME`, `ADVANCE`, `USE_ABILITY`, `VOTE`, `CHAT`, `TIMEOUT`, `ABORT`). Er wird auf einer Kopie ausgeführt und nur bei Erfolg übernommen. Ungültige Befehle liefern einen Fehlercode und eine deutsche Meldung, der Zustand bleibt unverändert.
 - Zufall ist deterministisch (Seed im Zustand): Tests und Wiederholungen sind reproduzierbar.
 - Die Engine misst keine Zeit. Server oder Oberfläche senden bei Ablauf `TIMEOUT`, die Engine wendet die Ersatzregel jeder offenen Entscheidung an. So kann keine Partie dauerhaft hängen.
 - `viewFor(spielerId)` liefert nur, was dieser Spieler sehen darf, `publicView()` nur Öffentliches. Ein späterer Online-Server verschickt genau diese Objekte.
@@ -81,10 +84,16 @@ Wo die Vorgaben offen oder widersprüchlich waren, gilt (alles konfigurierbar):
 
 Ein Gerät ist der Erzähler. Rollen werden reihum geheim angesehen; nachts ruft das Gerät die Rollen auf, nur die Aufgerufenen schauen hin; die Abstimmung läuft geheim reihum. Gruppenentscheidungen (Werwölfe) werden gemeinsam eingegeben, die Engine prüft trotzdem jede Einzelstimme.
 
+In der Vorbereitung lässt sich jeder Platz als Bot markieren, "Einzelspieler gegen Bots" füllt alle anderen Plätze mit Bots. Bots handeln selbstständig, Menschen werden nur für ihre eigenen Schritte aufgerufen. Tagsüber gibt es einen Chat: Bots beschuldigen mit Begründung, verteidigen sich und antworten auf Fragen. Details und Grenzen in [docs/bots.md](docs/bots.md).
+
+## Bots und Sprachen
+
+Die Bots laufen ohne KI-Dienst und ohne API-Schlüssel. Sie verstehen und schreiben Deutsch und Englisch. Andere Sprachen laufen über einen separaten Übersetzer: den in Chrome (ab Version 138, nur am Computer) eingebauten oder einen selbst betriebenen LibreTranslate-Server, dessen Adresse in der Vorbereitung eingetragen wird. Ohne Übersetzer antworten Bots auf Nachrichten in anderen Sprachen auf Englisch.
+
 ## Grafiken
 
-Alle Grafiken laufen über `src/ui/assets.ts`. Dateien in `public/assets/` ablegen und dort eintragen, z.B. `cards: { werewolf: 'assets/cards/werewolf.png' }`. Fehlt ein Eintrag (auch bei neuen Rollen), erscheint automatisch ein Platzhalter.
+Alle Grafiken und Töne laufen über `src/ui/assets.ts`. Dateien in `public/assets/` ablegen und dort eintragen, z.B. `cards: { werewolf: 'assets/cards/werewolf.webp' }`. Fehlt ein Eintrag (auch bei neuen Rollen), erscheint automatisch ein Platzhalter. Die vollständige Liste mit Dateinamen, Größen und Hinweisen steht in [docs/assets.md](docs/assets.md).
 
 ## Neue Rolle hinzufügen
 
-Siehe [docs/neue-rolle.md](docs/neue-rolle.md). Kurzfassung: Datei in `src/roles/` mit `defineRole(...)` anlegen, in `BASE_ROLES` eintragen, Test schreiben. Phasen, Nacht-, Todes- und Siegsystem bleiben unverändert.
+Siehe [docs/neue-rolle.md](docs/neue-rolle.md). Kurzfassung: Datei in `src/roles/` mit `defineRole(...)` anlegen, in `BASE_ROLES` eintragen, Test schreiben. Phasen, Nacht-, Todes- und Siegsystem bleiben unverändert. Bot-Verhalten für die neue Rolle: `registerBotAbility` (siehe [docs/bots.md](docs/bots.md)).

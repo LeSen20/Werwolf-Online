@@ -73,7 +73,7 @@ export const werewolf = defineRole({
         if (!ctx.hasTag(viewer, WEREWOLF_PACK_TAG)) return [];
         return ctx.players
           .filter((p) => p.id !== viewer.id && p.roleId && ctx.hasTag(p, WEREWOLF_PACK_TAG))
-          .map((p) => ({ playerId: p.id, label: 'Werwolf' }));
+          .map((p) => ({ playerId: p.id, label: 'Werwolf', kind: WEREWOLF_PACK_TAG }));
       },
     },
   ],

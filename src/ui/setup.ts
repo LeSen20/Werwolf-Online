@@ -1,3 +1,4 @@
+import { PERSONAS } from '../bots';
 import {
   DEFAULT_RULES,
   DEFAULT_TIMERS,
@@ -11,14 +12,17 @@ import {
   type Registry,
   type RoleId,
 } from '../engine';
+import { createTranslator, type TranslationSettings } from '../translation';
 import { panel } from './components';
 import { button, h } from './dom';
 
-const STORAGE_KEY = 'werwolf.setup.names';
+const STORAGE_KEY = 'werwolf.setup';
 const BASE_ROLE_IDS = ['villager', 'werewolf'];
 
 interface SetupState {
   names: string[];
+  /** Je Spieler: true = Bot. */
+  bots: boolean[];
   mode: 'auto' | 'manual';
   werewolves: number;
   specials: RoleId[];
@@ -29,25 +33,39 @@ interface SetupState {
   witchBoth: boolean;
   mixedLovers: boolean;
   discussion: number;
+  libreTranslateUrl: string;
 }
 
-function loadNames(): string[] {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (Array.isArray(stored) && stored.every((n) => typeof n === 'string') && stored.length >= MIN_PLAYERS) return stored;
-  } catch {
-    // Speicher nicht verfügbar: Standardnamen verwenden.
-  }
-  return Array.from({ length: 8 }, (_, i) => `Spieler ${i + 1}`);
+export interface StartRequest {
+  config: GameConfigInput;
+  /** Indizes der Bot-Spieler (Spieler-ID = p{index+1}). */
+  botIndices: number[];
+  translation: TranslationSettings;
 }
 
-function saveNames(names: string[]): void {
+interface Stored {
+  names?: unknown;
+  bots?: unknown;
+  libreTranslateUrl?: unknown;
+}
+
+function load(): Stored {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(names));
+    return (JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Stored) ?? {};
   } catch {
-    // ignorieren
+    return {};
   }
 }
+
+function save(state: SetupState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ names: state.names, bots: state.bots, libreTranslateUrl: state.libreTranslateUrl }));
+  } catch {
+    // Speicher nicht verfügbar: Einstellungen gelten nur für diese Sitzung.
+  }
+}
+
+const isDefaultName = (name: string) => /^Spieler \d+$/.test(name.trim()) || name.trim() === '';
 
 /**
  * Spielvorbereitung. Alle Rollen aus der Registry erscheinen automatisch,
@@ -55,19 +73,25 @@ function saveNames(names: string[]): void {
  */
 export class SetupScreen {
   private readonly registry: Registry;
-  private readonly onStart: (config: GameConfigInput) => void;
+  private readonly onStart: (request: StartRequest) => void;
   private readonly rerender: () => void;
   private readonly state: SetupState;
   private summary: HTMLElement | null = null;
   private startButton: HTMLButtonElement | null = null;
 
-  constructor(registry: Registry, onStart: (config: GameConfigInput) => void, rerender: () => void) {
+  constructor(registry: Registry, onStart: (request: StartRequest) => void, rerender: () => void) {
     this.registry = registry;
     this.onStart = onStart;
     this.rerender = rerender;
-    const names = loadNames();
+    const stored = load();
+    const names =
+      Array.isArray(stored.names) && stored.names.every((n) => typeof n === 'string') && stored.names.length >= MIN_PLAYERS
+        ? (stored.names as string[])
+        : Array.from({ length: 8 }, (_, i) => `Spieler ${i + 1}`);
+    const bots = Array.isArray(stored.bots) ? names.map((_, i) => (stored.bots as unknown[])[i] === true) : names.map(() => false);
     this.state = {
       names,
+      bots,
       mode: 'auto',
       werewolves: suggestWerewolfCount(names.length),
       specials: ['seer', 'witch', 'hunter', 'cupid'],
@@ -78,6 +102,7 @@ export class SetupScreen {
       witchBoth: true,
       mixedLovers: false,
       discussion: DEFAULT_TIMERS.discussion,
+      libreTranslateUrl: typeof stored.libreTranslateUrl === 'string' ? stored.libreTranslateUrl : '',
     };
   }
 
@@ -102,10 +127,17 @@ export class SetupScreen {
     };
   }
 
+  /** Freier Persona-Name für einen neuen Bot. */
+  private botName(): string {
+    const used = new Set(this.state.names.map((n) => n.trim().toLowerCase()));
+    return PERSONAS.find((p) => !used.has(p.name.toLowerCase()))?.name ?? `Bot ${this.state.names.length + 1}`;
+  }
+
   /** Aktualisiert nur Zusammenfassung und Startknopf (Eingabefelder behalten den Fokus). */
   private refresh(): void {
     const config = this.buildConfig();
     const issues = validateConfig(config, this.registry);
+    if (!this.state.bots.some((bot) => !bot)) issues.push('Mindestens ein Spieler muss ein Mensch sein.');
     const cards = Object.entries(config.roles)
       .filter(([, n]) => n > 0)
       .map(([id, n]) => `${this.registry.hasRole(id) ? this.registry.getRole(id).name : id} x${n}`);
@@ -159,8 +191,9 @@ export class SetupScreen {
         ),
       );
 
+    const humans = s.bots.filter((bot) => !bot).length;
     const playerSection = panel(
-      `Spieler (${s.names.length})`,
+      `Spieler (${s.names.length}, davon ${s.names.length - humans} Bots)`,
       [
         h(
           'ol',
@@ -178,8 +211,23 @@ export class SetupScreen {
                   this.refresh();
                 },
               }),
+              h(
+                'label',
+                { class: 'check bot-toggle' },
+                h('input', {
+                  type: 'checkbox',
+                  checked: s.bots[index],
+                  onchange: (e: Event) => {
+                    s.bots[index] = (e.target as HTMLInputElement).checked;
+                    if (s.bots[index] && isDefaultName(s.names[index])) s.names[index] = this.botName();
+                    this.rerender();
+                  },
+                }),
+                'Bot',
+              ),
               button('Entfernen', () => {
                 s.names.splice(index, 1);
+                s.bots.splice(index, 1);
                 this.rerender();
               }, 'small secondary', s.names.length <= MIN_PLAYERS),
             ),
@@ -189,8 +237,26 @@ export class SetupScreen {
       [
         button('Spieler hinzufügen', () => {
           s.names.push(`Spieler ${s.names.length + 1}`);
+          s.bots.push(false);
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
+        button('Bot hinzufügen', () => {
+          s.names.push(this.botName());
+          s.bots.push(true);
+          this.rerender();
+        }, 'secondary', s.names.length >= MAX_PLAYERS),
+        button('Einzelspieler gegen Bots', () => {
+          s.bots = s.names.map((_, i) => i > 0);
+          s.names = s.names.map((name, i) => (i === 0 ? name : ''));
+          for (let i = 1; i < s.names.length; i++) s.names[i] = this.botName();
+          this.rerender();
+          // Eigenen Namen gleich eintippen lassen. Ein Ersatzname wie "Du" ergäbe schiefe Bot-Sätze ("Du ist verdächtig").
+          if (isDefaultName(s.names[0])) {
+            const input = document.querySelector<HTMLInputElement>('input[aria-label="Name von Spieler 1"]');
+            input?.focus();
+            input?.select();
+          }
+        }, 'secondary'),
       ],
     );
 
@@ -257,11 +323,49 @@ export class SetupScreen {
       ),
     ]);
 
+    const translator = createTranslator({ libreTranslateUrl: s.libreTranslateUrl });
+    const translationSection = panel('Sprachen und Übersetzer', [
+      h('p', null, `Aktiv: ${translator.name}.`),
+      h(
+        'p',
+        { class: 'hint' },
+        translator.canTranslate
+          ? 'Bots antworten in der Sprache, in der geschrieben wird. Sprachpakete werden beim ersten Gebrauch geladen.'
+          : 'Bots verstehen und schreiben Deutsch und Englisch. Für weitere Sprachen: Chrome am Desktop (eingebauter Übersetzer) oder einen eigenen LibreTranslate-Server eintragen.',
+      ),
+      h(
+        'label',
+        { class: 'field' },
+        'Eigener LibreTranslate-Server (optional, z.B. http://localhost:5000)',
+        h('input', {
+          type: 'url',
+          value: s.libreTranslateUrl,
+          placeholder: 'leer = Browser-Übersetzer oder keiner',
+          onchange: (e: Event) => {
+            s.libreTranslateUrl = (e.target as HTMLInputElement).value.trim();
+            this.rerender();
+          },
+        }),
+      ),
+    ]);
+
     this.startButton = button('Spiel starten', () => {
-      saveNames(s.names);
-      this.onStart(this.buildConfig());
+      save(s);
+      this.onStart({
+        config: this.buildConfig(),
+        botIndices: s.bots.flatMap((bot, index) => (bot ? [index] : [])),
+        translation: { libreTranslateUrl: s.libreTranslateUrl || null },
+      });
     });
-    const element = h('div', { class: 'setup' }, playerSection, rolesSection, rulesSection, h('div', { class: 'actions start' }, this.startButton));
+    const element = h(
+      'div',
+      { class: 'setup' },
+      playerSection,
+      rolesSection,
+      rulesSection,
+      translationSection,
+      h('div', { class: 'actions start' }, this.startButton),
+    );
     this.refresh();
     return element;
   }

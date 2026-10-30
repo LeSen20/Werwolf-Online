@@ -1,18 +1,30 @@
 /**
  * Hot-Seat-Oberfläche: Ein Gerät ist der Erzähler und wird bei geheimen Entscheidungen
- * weitergegeben. Die Oberfläche entscheidet keine Spielregeln. Sie zeigt nur die
- * Ansichten der Engine an und sendet Befehle; ein späterer Online-Client kann
- * dieselben Ansichten (viewFor/publicView) und Befehle verwenden.
+ * an die menschlichen Spieler weitergegeben; Bots handeln selbst. Die Oberfläche
+ * entscheidet keine Spielregeln. Sie zeigt nur die Ansichten der Engine an und sendet
+ * Befehle; ein späterer Online-Client kann dieselben Ansichten und Befehle verwenden.
  */
-import { Game, type Command, type GameConfigInput, type GameEvent, type PendingDecision, type PlayerId, type PublicView } from '../engine';
+import { BotController, PERSONAS, personaFor } from '../bots';
+import { Game, type Command, type DispatchResult, type GameEvent, type PendingDecision, type PlayerId, type PublicView } from '../engine';
 import { createDefaultRegistry } from '../roles';
-import { ASSETS, assetUrl } from './assets';
-import { eventLog, knowledge, panel, playerList, promptForm, roleCard, type Theme } from './components';
+import { basicTranslator, createTranslator, detectLanguage, type Translator } from '../translation';
+import { ASSETS, assetUrl, playSound, type SoundKey } from './assets';
+import { chatLog, eventLog, icon, knowledge, panel, playerList, promptForm, roleCard, type Theme } from './components';
 import { button, h, type Child } from './dom';
-import { SetupScreen } from './setup';
+import { SetupScreen, type StartRequest } from './setup';
 
 /** Debug-Protokoll (zeigt alle geheimen Informationen) nur mit ?debug in der Adresse anbieten. */
 const DEBUG = new URLSearchParams(window.location.search).has('debug');
+
+/** Töne eines Abschnitts in dieser Reihenfolge nacheinander (Chat nur, wenn sonst nichts passiert). */
+const SOUND_SEQUENCE: ReadonlyArray<readonly [string, SoundKey]> = [
+  ['day-start', 'dayStart'],
+  ['death', 'death'],
+  ['vote-start', 'vote'],
+  ['night-start', 'nightStart'],
+  ['game-over', 'gameOver'],
+];
+const SOUND_GAP_MS = 1500;
 
 interface Interstitial {
   title: string;
@@ -40,6 +52,11 @@ export class App {
   private readonly registry = createDefaultRegistry();
   private readonly setup: SetupScreen;
   private game: Game | null = null;
+  private bots: BotController | null = null;
+  private translator: Translator = basicTranslator;
+  private botTimer: number | null = null;
+  private chatDraft = '';
+  private chatAs: PlayerId | null = null;
 
   // Reiner Bildschirmablauf (keine Spielregeln):
   private revealIndex = 0;
@@ -55,12 +72,13 @@ export class App {
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.setup = new SetupScreen(this.registry, (config) => this.startGame(config), () => this.render());
+    this.setup = new SetupScreen(this.registry, (request) => this.startGame(request), () => this.render());
   }
 
   // ---------------------------------------------------------------- Ablauf
 
-  private startGame(config: GameConfigInput): void {
+  private startGame(request: StartRequest): void {
+    const { config } = request;
     try {
       this.game = Game.create(config, this.registry, {
         logger: (entry) => {
@@ -72,6 +90,26 @@ export class App {
       this.render();
       return;
     }
+    // Bots: Spieler-IDs sind p1..pN in der Reihenfolge der Vorbereitung.
+    this.translator = createTranslator(request.translation);
+    // Bots mit Persona-Namen bekommen ihre Persona, alle anderen reihum eine noch freie.
+    const named = request.botIndices.map((index) => PERSONAS.find((p) => p.name === config.players[index]?.name.trim()));
+    const used = new Set(named.flatMap((persona) => (persona ? [persona.id] : [])));
+    const botSetups = request.botIndices.map((index, order) => {
+      const persona = named[order] ?? PERSONAS.find((p) => !used.has(p.id)) ?? personaFor(order);
+      used.add(persona.id);
+      return { playerId: `p${index + 1}`, persona };
+    });
+    this.bots =
+      botSetups.length > 0
+        ? new BotController(this.game, botSetups, {
+            send: (command) => this.botSend(command),
+            translator: this.translator,
+            onChange: () => this.refreshTyping(),
+          })
+        : null;
+    this.chatDraft = '';
+    this.chatAs = null;
     this.revealIndex = 0;
     this.revealOpen = false;
     this.nightIntroRound = 0;
@@ -84,6 +122,9 @@ export class App {
 
   private newGame(): void {
     this.stopTimer();
+    if (this.botTimer !== null) window.clearTimeout(this.botTimer);
+    this.botTimer = null;
+    this.bots = null;
     this.game = null;
     this.message = null;
     this.interstitial = null;
@@ -125,20 +166,74 @@ export class App {
     }
     this.message = null;
     this.summarize(before, beforeKey, actors, result.events);
+    this.playEventSounds(result.events);
     return true;
+  }
+
+  private isBot(playerId: PlayerId): boolean {
+    return this.bots?.isBot(playerId) ?? false;
+  }
+
+  /** Chatnachrichten der Bots. Abgelehnte Nachrichten (z.B. Phase vorbei) werden still verworfen. */
+  private botSend(command: Command): DispatchResult {
+    const result = this.game!.dispatch(command);
+    if (result.ok) {
+      this.playEventSounds(result.events);
+      this.render();
+    }
+    return result;
+  }
+
+  /** Fällige Bot-Entscheidungen nach einer kurzen, menschlich wirkenden Pause ausführen. */
+  private scheduleBots(view: PublicView | null): void {
+    if (!this.bots || !view || this.botTimer !== null || this.interstitial) return;
+    if (view.phase === 'NIGHT_ACTIONS' && this.nightIntroRound < view.round) return;
+    const command = this.bots.nextDecision();
+    if (!command) return;
+    const delay = command.type === 'VOTE' ? 500 + Math.random() * 900 : 1800 + Math.random() * 1800;
+    this.botTimer = window.setTimeout(() => {
+      this.botTimer = null;
+      const next = this.bots?.nextDecision();
+      if (next) this.dispatch(next);
+      else this.render();
+    }, delay);
+  }
+
+  private refreshTyping(): void {
+    const element = this.root.querySelector('#typing');
+    if (!element || !this.game || !this.bots) return;
+    const names = [...this.bots.typing].map((id) => this.game!.publicView().players.find((p) => p.id === id)?.name ?? id);
+    element.textContent = names.length > 0 ? `${names.join(', ')} ${names.length === 1 ? 'tippt' : 'tippen'} ...` : '';
+  }
+
+  /** Während der Nutzeraktion (Klick) Sprachpakete vorbereiten; Browser laden sie nur dann. */
+  private async prepareTranslation(text: string): Promise<void> {
+    if (!this.translator.canTranslate || !this.translator.prepare) return;
+    const language = await detectLanguage(this.translator, text);
+    if (language && language !== 'de' && language !== 'en') await this.translator.prepare([language]).catch(() => {});
+  }
+
+  private playEventSounds(events: GameEvent[]): void {
+    const types = new Set(events.filter((e) => e.visibility.kind === 'public').map((e) => e.type));
+    const keys = SOUND_SEQUENCE.filter(([type]) => types.has(type)).map(([, key]) => key);
+    if (keys.length === 0 && types.has('chat')) keys.push('chat');
+    keys.forEach((key, index) => setTimeout(() => playSound(key), index * SOUND_GAP_MS));
   }
 
   /** Zeigt nach einem abgeschlossenen Abschnitt eine Zwischenseite mit den Ergebnissen. */
   private summarize(before: PublicView, beforeKey: string, actors: Set<PlayerId>, events: GameEvent[]): void {
     const afterKey = this.screenKey();
     if (beforeKey.startsWith('night:')) {
-      // Private Ergebnisse (z.B. Seherin) nur für die gerade wachen Spieler.
+      // Private Ergebnisse (z.B. Seherin) nur für die gerade wachen Menschen; Bot-Wissen bleibt geheim.
+      const humans = [...actors].filter((id) => !this.isBot(id));
       this.stepNotes.push(
         ...events
-          .filter((e) => e.type !== 'group-vote' && e.visibility.kind === 'players' && e.visibility.playerIds.some((id) => actors.has(id)))
+          .filter((e) => e.type !== 'group-vote' && e.visibility.kind === 'players' && e.visibility.playerIds.some((id) => humans.includes(id)))
           .map((e) => e.text),
       );
-      if (afterKey !== beforeKey) {
+      if (afterKey !== beforeKey && humans.length === 0) {
+        this.stepNotes = [];
+      } else if (afterKey !== beforeKey) {
         const label = before.nightStep?.label ?? 'Nacht';
         this.interstitial = {
           title: label,
@@ -216,22 +311,98 @@ export class App {
   // ---------------------------------------------------------------- Darstellung
 
   render(): void {
+    // Fokus im Chat-Eingabefeld über das Neuzeichnen hinweg erhalten.
+    const active = document.activeElement;
+    const chatFocused = active instanceof HTMLInputElement && active.id === 'chat-input';
+    const caret = chatFocused ? active.selectionStart : null;
     const view = this.game?.publicView() ?? null;
     const theme = this.themeFor(view);
     document.body.dataset.theme = theme;
     const background = ASSETS.backgrounds[theme];
-    document.body.style.setProperty('--bg-image', background ? `url("${assetUrl(background)}")` : 'none');
+    // Absoluter Pfad: Relative URLs in CSS-Variablen würden gegen die CSS-Datei aufgelöst.
+    const backgroundUrl = background ? new URL(assetUrl(background), document.baseURI).href : null;
+    document.body.style.setProperty('--bg-image', backgroundUrl ? `url("${backgroundUrl}")` : 'none');
     this.root.replaceChildren(
       h(
         'div',
         { class: 'app' },
         this.header(view),
         this.message ? h('div', { class: 'message', role: 'alert' }, this.message) : null,
-        h('main', null, this.screen(view)),
+        h('main', null, this.screen(view), view ? this.chatPanel(view) : null),
         this.logPanel(view),
       ),
     );
+    const log = this.root.querySelector('#chat-log');
+    if (log) log.scrollTop = log.scrollHeight;
+    if (chatFocused) {
+      const input = this.root.querySelector<HTMLInputElement>('#chat-input');
+      input?.focus();
+      if (input && caret !== null) input.setSelectionRange(caret, caret);
+    }
     this.syncTimer(view);
+    this.scheduleBots(view);
+    void this.bots?.observe();
+  }
+
+  /** Tages-Chat für Menschen; Bots schreiben über den BotController mit. */
+  private chatPanel(view: PublicView): HTMLElement | null {
+    if (!['DAY_ANNOUNCEMENT', 'DAY_DISCUSSION', 'DAY_VOTING'].includes(view.phase) || this.interstitial) return null;
+    const humans = view.players.filter((p) => p.alive && !this.isBot(p.id));
+    if (!this.chatAs || !humans.some((p) => p.id === this.chatAs)) this.chatAs = humans[0]?.id ?? null;
+    const lines = view.events
+      .filter((e) => e.type === 'chat')
+      .map((e) => {
+        const speakerId = String(e.data?.playerId ?? '');
+        return {
+          id: e.id,
+          speaker: view.players.find((p) => p.id === speakerId)?.name ?? '?',
+          avatarKey: this.bots?.persona(speakerId)?.id ?? 'human',
+          text: String(e.data?.message ?? ''),
+        };
+      });
+    const typing = [...(this.bots?.typing ?? [])].map((id) => view.players.find((p) => p.id === id)?.name ?? id);
+    const send = () => {
+      const text = this.chatDraft.trim();
+      if (!text || !this.chatAs) return;
+      this.chatDraft = '';
+      void this.prepareTranslation(text);
+      this.dispatch({ type: 'CHAT', playerId: this.chatAs, text });
+    };
+    return panel('Chat', [
+      chatLog(lines, typing),
+      humans.length > 0
+        ? h(
+            'div',
+            { class: 'chat-input' },
+            humans.length > 1
+              ? h(
+                  'select',
+                  {
+                    'aria-label': 'Schreiben als',
+                    onchange: (e: Event) => {
+                      this.chatAs = (e.target as HTMLSelectElement).value;
+                    },
+                  },
+                  humans.map((p) => h('option', { value: p.id, selected: p.id === this.chatAs }, p.name)),
+                )
+              : null,
+            h('input', {
+              id: 'chat-input',
+              value: this.chatDraft,
+              maxlength: 500,
+              placeholder: 'Nachricht schreiben (jede Sprache) ...',
+              'aria-label': 'Nachricht',
+              oninput: (e: Event) => {
+                this.chatDraft = (e.target as HTMLInputElement).value;
+              },
+              onkeydown: (e: Event) => {
+                if ((e as KeyboardEvent).key === 'Enter') send();
+              },
+            }),
+            button('Senden', send),
+          )
+        : h('p', { class: 'hint' }, 'Nur lebende Spieler dürfen schreiben.'),
+    ]);
   }
 
   private themeFor(view: PublicView | null): Theme {
@@ -330,7 +501,8 @@ export class App {
 
   private revealScreen(view: PublicView): Child {
     const game = this.game!;
-    const players = view.players;
+    // Bots kennen ihre Karte bereits, das Gerät geht nur an Menschen.
+    const players = view.players.filter((p) => !this.isBot(p.id));
     if (this.revealIndex >= players.length) {
       return panel('Alle kennen ihre Rolle', [h('p', null, 'Legt das Gerät in die Mitte. Gleich beginnt die erste Nacht.')], [
         button('Erste Nacht beginnen', () => this.dispatch({ type: 'ADVANCE' })),
@@ -374,6 +546,13 @@ export class App {
     }
     const step = view.nightStep;
     const key = this.screenKey(view);
+    const humanActors = this.game!.pendingDecisions().filter((p) => !this.isBot(p.playerId));
+    if (step && humanActors.length === 0) {
+      return panel(step.label, [
+        h('p', { class: 'narration' }, `${step.label}: wach und am Entscheiden ...`),
+        h('p', null, 'Alle anderen halten die Augen geschlossen.'),
+      ]);
+    }
     if (step && this.awakeKey !== key) {
       return panel(
         step.label,
@@ -405,19 +584,36 @@ export class App {
       if (prompt?.group) groups.set(p.abilityId, [...(groups.get(p.abilityId) ?? []), p.playerId]);
     }
     for (const [abilityId, members] of groups) {
-      const prompt = game.viewFor(members[0]).pending.find((x) => x.abilityId === abilityId)!;
+      const humans = members.filter((id) => !this.isBot(id));
+      if (humans.length === 0) continue;
+      const prompt = game.viewFor(humans[0]).pending.find((x) => x.abilityId === abilityId)!;
+      const nameOf = (id: PlayerId) => game.publicView().players.find((p) => p.id === id)?.name ?? id;
+      // Bots im Rudel machen einen Vorschlag, die Menschen entscheiden.
+      const suggestions = members
+        .filter((id) => this.isBot(id))
+        .map((id) => {
+          const target = this.bots?.suggestion(id, abilityId);
+          return target ? `Vorschlag von ${nameOf(id)}: ${nameOf(target)}` : '';
+        })
+        .filter(Boolean);
       sections.push(
         h(
           'section',
           { class: 'actor' },
-          h('h3', null, `Gemeinsam: ${members.map((id) => game.viewFor(id).self.name).join(', ')}`),
+          h('h3', null, `Gemeinsam: ${members.map(nameOf).join(', ')}`),
+          ...suggestions.map((line) => h('p', { class: 'info' }, line)),
           promptForm({ ...prompt, group: null }, (answer) =>
             this.dispatch(...members.map((playerId): Command => ({ type: 'USE_ABILITY', playerId, abilityId, ...answer }))),
           ),
         ),
       );
     }
-    const actorIds = [...new Set(pending.filter((p) => !groups.has(p.abilityId)).map((p) => p.playerId))];
+    const actorIds = [...new Set(pending.filter((p) => !groups.has(p.abilityId) && !this.isBot(p.playerId)).map((p) => p.playerId))];
+    const deciding = [...new Set(pending.filter((p) => this.isBot(p.playerId) && !groups.has(p.abilityId)).map((p) => p.playerId))];
+    if (deciding.length > 0) {
+      const names = deciding.map((id) => game.publicView().players.find((p) => p.id === id)?.name ?? id);
+      sections.push(h('p', { class: 'narration' }, `${names.join(', ')} ${names.length === 1 ? 'entscheidet' : 'entscheiden'} ...`));
+    }
     for (const playerId of actorIds) {
       const own = game.viewFor(playerId);
       sections.push(
@@ -451,9 +647,13 @@ export class App {
     const vote = view.vote!;
     const title = vote.round > 1 ? 'Stichwahl' : 'Abstimmung';
     const close = button('Abstimmung beenden (fehlende Stimmen = Enthaltung)', () => this.dispatch({ type: 'ADVANCE' }), 'secondary');
-    const next = vote.voters.find((v) => !vote.voted.includes(v.id));
+    // Reihum stimmen nur Menschen ab; Bots stimmen selbst (geheim).
+    const next = vote.voters.find((v) => !vote.voted.includes(v.id) && !this.isBot(v.id));
     const status = h('p', null, `Abgestimmt: ${vote.voted.length} von ${vote.voters.length}. Zur Wahl: ${vote.candidates.map((c) => c.name).join(', ')}.`);
-    if (!next) return panel(title, [h('p', null, 'Alle haben abgestimmt.'), status], [close]);
+    if (!next) {
+      const waiting = vote.voted.length < vote.voters.length;
+      return panel(title, [h('p', null, waiting ? 'Die übrigen Stimmen werden abgegeben ...' : 'Alle haben abgestimmt.'), status], [close]);
+    }
     if (this.voterReady !== next.id) {
       return panel(title, [h('p', { class: 'narration' }, `Gib das Gerät an ${next.name}. Die Stimme ist geheim.`), status, h('p', { class: 'timer', id: 'timer' })], [
         button(`Ich bin ${next.name}`, () => {
@@ -500,7 +700,7 @@ export class App {
               'div',
               { class: `final${result.winners.includes(p.id) ? ' winner' : ''}` },
               roleCard(p.role, 'small'),
-              h('span', null, p.name),
+              h('span', null, p.name, this.isBot(p.id) ? [' ', icon('bot', '(Bot)')] : null),
               h('span', { class: 'hint' }, p.alive ? 'lebt' : `tot (${p.deathCause ?? '?'})`),
             ),
           ),

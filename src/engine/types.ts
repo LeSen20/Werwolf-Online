@@ -245,12 +245,20 @@ export interface VoteCommand {
   targetId: PlayerId | null;
 }
 
+export interface ChatCommand {
+  type: 'CHAT';
+  playerId: PlayerId;
+  text: string;
+}
+
 export type Command =
   | { type: 'START_GAME' }
   /** Host/Erzähler: wartende Phase beenden (Rollen gesehen, Diskussion vorbei, Abstimmung schließen). */
   | { type: 'ADVANCE' }
   | UseAbilityCommand
   | VoteCommand
+  /** Öffentliche Chatnachricht am Tag (Menschen und Bots). */
+  | ChatCommand
   /** Zeitlimit abgelaufen: offene Entscheidungen werden per Ersatzregel aufgelöst. */
   | { type: 'TIMEOUT' }
   | { type: 'ABORT'; reason?: string };

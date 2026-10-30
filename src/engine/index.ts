@@ -30,5 +30,6 @@ export { pluralityTargets } from './actions';
 export { VILLAGE, WEREWOLVES, isOpponentOf, teamMembers } from './win';
 export { PHASE_LABELS, FACTION_LABELS } from './labels';
 export { PHASE_SPECS } from './phases';
+export { MAX_CHAT_LENGTH } from './chat';
 export type { DecisionPrompt, PlayerSummary, PlayerView, PlayerVoteView, PublicView, RoleInfo, VoteView } from './views';
 export * from './types';

@@ -83,10 +83,10 @@ const loversRule: RuleModule = {
   knowledge(_ctx, viewer) {
     const known: KnownInfo[] = [];
     const partnerId = getLoverId(viewer);
-    if (partnerId) known.push({ playerId: partnerId, label: 'Dein Partner (verliebt)' });
+    if (partnerId) known.push({ playerId: partnerId, label: 'Dein Partner (verliebt)', kind: 'lover' });
     const couple = viewer.marks[COUPLE_MARK];
     if (Array.isArray(couple)) {
-      for (const id of couple) if (typeof id === 'string') known.push({ playerId: id, label: 'Verliebt' });
+      for (const id of couple) if (typeof id === 'string') known.push({ playerId: id, label: 'Verliebt', kind: 'couple' });
     }
     return known;
   },
