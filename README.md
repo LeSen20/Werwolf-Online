@@ -84,7 +84,7 @@ Wo die Vorgaben offen oder widersprüchlich waren, gilt (alles konfigurierbar):
 
 Ein Gerät ist der Erzähler. Rollen werden reihum geheim angesehen; nachts ruft das Gerät die Rollen auf, nur die Aufgerufenen schauen hin; die Abstimmung läuft geheim reihum. Gruppenentscheidungen (Werwölfe) werden gemeinsam eingegeben, die Engine prüft trotzdem jede Einzelstimme.
 
-In der Vorbereitung lässt sich jeder Platz als Bot markieren, "Einzelspieler gegen Bots" füllt alle anderen Plätze mit Bots. Bots handeln selbstständig, Menschen werden nur für ihre eigenen Schritte aufgerufen. Tagsüber gibt es einen Chat: Bots beschuldigen mit Begründung, verteidigen sich und antworten auf Fragen. Details und Grenzen in [docs/bots.md](docs/bots.md).
+In der Vorbereitung lässt sich jeder Platz als Bot markieren, "Einzelspieler gegen Bots" füllt alle anderen Plätze mit Bots. Bots bekommen jede Partie neue, zufällige Benutzernamen (z.B. `le_na3`, `nachteule7`, `ShadowFox92`). Bots handeln selbstständig, Menschen werden nur für ihre eigenen Schritte aufgerufen. Tagsüber gibt es einen Chat: Bots beschuldigen mit Begründung, verteidigen sich und antworten auf Fragen. Details und Grenzen in [docs/bots.md](docs/bots.md).
 
 ## Bots und Sprachen
 

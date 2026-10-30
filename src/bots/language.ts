@@ -131,7 +131,18 @@ function choose(ctx: TemplateContext, variants: string[]): string {
   return pickRandom(ctx.random, variants) ?? variants[0];
 }
 
-export function renderIntent(intent: SpeechIntent, ctx: TemplateContext): string {
+export function renderIntent(intent: SpeechIntent, context: TemplateContext): string {
+  // Namen bleiben unverändert, auch am Satzanfang ("finn72 ist ein Werwolf", nicht "Finn72").
+  const used: string[] = [];
+  const ctx: TemplateContext = {
+    ...context,
+    name: (id) => {
+      const value = context.name(id);
+      used.push(value);
+      return value;
+    },
+  };
+  const upper = (text: string) => (used.some((value) => text.startsWith(value)) ? text : capitalize(text));
   const n = ctx.name;
   const en = ctx.lang === 'en';
   switch (intent.kind) {
@@ -142,8 +153,8 @@ export function renderIntent(intent: SpeechIntent, ctx: TemplateContext): string
       return choose(
         ctx,
         en
-          ? [`I suspect ${t}. ${capitalize(why)}.`, `Honestly, ${t} looks off to me: ${why}.`, `${t} is my top suspect right now, ${why}.`]
-          : [`Ich verdächtige ${t}. ${capitalize(why)}.`, `Ehrlich gesagt finde ich ${t} komisch: ${why}.`, `${t} ist für mich gerade am verdächtigsten, ${why}.`],
+          ? [`I suspect ${t}. ${upper(why)}.`, `Honestly, ${t} looks off to me: ${why}.`, `${t} is my top suspect right now, ${why}.`]
+          : [`Ich verdächtige ${t}. ${upper(why)}.`, `Ehrlich gesagt finde ich ${t} komisch: ${why}.`, `${t} ist für mich gerade am verdächtigsten, ${why}.`],
       );
     }
     case 'claim': {
@@ -153,8 +164,8 @@ export function renderIntent(intent: SpeechIntent, ctx: TemplateContext): string
         .join(', ');
       const why = reasonsText(intent.reasons, ctx);
       let text = en ? `Okay, I'll say it: I am ${role}.` : `Okay, ich sage es jetzt: Ich bin ${role}.`;
-      if (checks) text += en ? ` ${capitalize(checks)}.` : ` ${capitalize(checks)}.`;
-      if (why) text += ` ${capitalize(why)}.`;
+      if (checks) text += en ? ` ${upper(checks)}.` : ` ${upper(checks)}.`;
+      if (why) text += ` ${upper(why)}.`;
       if (intent.accuseId) text += en ? ` Vote ${n(intent.accuseId)}!` : ` Stimmt für ${n(intent.accuseId)}!`;
       else if (intent.roleId === 'hunter') text += en ? ' If you vote me out, I take someone with me.' : ' Wenn ihr mich verbannt, nehme ich jemanden mit.';
       else if (intent.roleId === 'witch') text += en ? ' Voting me out only helps the wolves.' : ' Wenn ihr mich rauswerft, helft ihr nur den Wölfen.';

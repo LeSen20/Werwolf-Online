@@ -62,7 +62,7 @@ Allgemein:
 
 ## 4. Avatare (13)
 
-| Datei | Name | Charakter (für die Gestaltung) |
+| Datei | Persönlichkeit | Charakter (für die Gestaltung) |
 | --- | --- | --- |
 | `avatars/greta.webp` | Greta | direkt und selbstbewusst |
 | `avatars/jonas.webp` | Jonas | ruhig und analytisch |
@@ -76,11 +76,11 @@ Allgemein:
 | `avatars/leon.webp` | Leon | trocken und wortkarg |
 | `avatars/sofia.webp` | Sofia | dramatisch und emotional |
 | `avatars/max.webp` | Max | logisch, faktenorientiert |
-| `avatars/human.webp` | alle menschlichen Spieler | neutral, z.B. Silhouette |
+| `avatars/human.webp` | Menschen | neutral, z.B. Silhouette, für alle menschlichen Spieler |
 
 - Quadratisch, 256 x 256 px. Im Chat als Kreis mit 34 px Durchmesser angezeigt, die Ecken fallen weg: Gesicht mittig mit etwas Rand.
 - Die Avatare dürfen keine Rolle andeuten (nichts Wölfisches), denn jeder Bot kann jede Rolle bekommen.
-- Bots mit einem dieser Namen bekommen den passenden Avatar, Bots mit anderen Namen reihum einen freien.
+- Die Avatare gehören zu Persönlichkeiten, nicht zu Namen: Bots bekommen jede Partie einen neuen Benutzernamen (z.B. `nachteule7`) und zufällig eine Persönlichkeit samt Avatar. Die Namen in der Tabelle dienen nur der Zuordnung. Ein Avatar sollte deshalb zu jedem Benutzernamen passen, also eher eine Figur als ein Porträt mit Namensbezug sein.
 
 ## 5. Symbole (4)
 

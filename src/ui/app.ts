@@ -4,7 +4,7 @@
  * entscheidet keine Spielregeln. Sie zeigt nur die Ansichten der Engine an und sendet
  * Befehle; ein späterer Online-Client kann dieselben Ansichten und Befehle verwenden.
  */
-import { BotController, PERSONAS, personaFor } from '../bots';
+import { BotController, PERSONAS, shuffled } from '../bots';
 import { Game, type Command, type DispatchResult, type GameEvent, type PendingDecision, type PlayerId, type PublicView } from '../engine';
 import { createDefaultRegistry } from '../roles';
 import { basicTranslator, createTranslator, detectLanguage, type Translator } from '../translation';
@@ -92,14 +92,9 @@ export class App {
     }
     // Bots: Spieler-IDs sind p1..pN in der Reihenfolge der Vorbereitung.
     this.translator = createTranslator(request.translation);
-    // Bots mit Persona-Namen bekommen ihre Persona, alle anderen reihum eine noch freie.
-    const named = request.botIndices.map((index) => PERSONAS.find((p) => p.name === config.players[index]?.name.trim()));
-    const used = new Set(named.flatMap((persona) => (persona ? [persona.id] : [])));
-    const botSetups = request.botIndices.map((index, order) => {
-      const persona = named[order] ?? PERSONAS.find((p) => !used.has(p.id)) ?? personaFor(order);
-      used.add(persona.id);
-      return { playerId: `p${index + 1}`, persona };
-    });
+    // Persönlichkeiten (Sprechstil, Avatar) jede Partie neu verteilen.
+    const personas = shuffled(Math.random, PERSONAS);
+    const botSetups = request.botIndices.map((index, order) => ({ playerId: `p${index + 1}`, persona: personas[order % personas.length] }));
     this.bots =
       botSetups.length > 0
         ? new BotController(this.game, botSetups, {
@@ -128,6 +123,7 @@ export class App {
     this.game = null;
     this.message = null;
     this.interstitial = null;
+    this.setup.renewBotNames();
     this.render();
   }
 

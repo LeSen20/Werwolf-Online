@@ -20,16 +20,18 @@ export interface SetupOptions extends Partial<Omit<GameConfigInput, 'players' | 
   registry?: Registry;
   /** In ROLE_DISTRIBUTION stehen bleiben statt die erste Nacht zu starten. */
   stopBeforeNight?: boolean;
+  /** Eigene Spielernamen statt NAMES. */
+  names?: string[];
 }
 
 /** Partie mit fester Rollenzuweisung: Spieler p1..pN erhalten roles[0..N-1]. */
 export function setupGame(roles: RoleId[], options: SetupOptions = {}): Game {
-  const { extraCards = [], registry = createDefaultRegistry(), stopBeforeNight, ...config } = options;
+  const { extraCards = [], registry = createDefaultRegistry(), stopBeforeNight, names = NAMES, ...config } = options;
   const deck: Record<RoleId, number> = {};
   for (const roleId of [...roles, ...extraCards]) deck[roleId] = (deck[roleId] ?? 0) + 1;
   const game = Game.create(
     {
-      players: roles.map((_, i) => ({ id: `p${i + 1}`, name: NAMES[i] })),
+      players: roles.map((_, i) => ({ id: `p${i + 1}`, name: names[i] })),
       roles: deck,
       fixedRoles: Object.fromEntries(roles.map((roleId, i) => [`p${i + 1}`, roleId])),
       seed: 42,

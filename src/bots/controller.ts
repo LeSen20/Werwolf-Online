@@ -13,7 +13,7 @@
  */
 import type { Command, DispatchResult, Game, GameEvent, PlayerId } from '../engine';
 import { basicTranslator, detectLanguage, translateKeepingNames, type Translator } from '../translation';
-import { ClaimStore, extractClaimsOffline, findMentions, questionTopic, type Named } from './claims';
+import { ClaimStore, extractClaimsOffline, findMentions, questionTopic, shortNames, type Named } from './claims';
 import { renderIntent, styleMessage, type TemplateLanguage } from './language';
 import { createRandom, pickRandom, shuffled, type Random } from './random';
 import {
@@ -217,8 +217,7 @@ export class BotController {
     const message = String(event.data?.message ?? '');
     if (!speakerId || !message) return;
     const fromBot = this.isBot(speakerId);
-    const others = players.filter((p) => p.id !== speakerId);
-    let addressed = findMentions(message, others);
+    let addressed = findMentions(message, players, speakerId);
     let topic: QuestionTopic | null = message.includes('?') ? questionTopic(message) : null;
     if (!fromBot) {
       // Menschen: Sprache erkennen, bei Bedarf ins Englische übersetzen, Aussagen auslesen.
@@ -292,9 +291,20 @@ export class BotController {
 
     const target = this.language ?? this.options.language ?? 'de';
     const base: TemplateLanguage = target === 'de' ? 'de' : 'en';
-    const names = ctx.view.players.map((p) => p.name);
-    const name = (id: PlayerId) => ctx.view.players.find((p) => p.id === id)?.name ?? id;
     const voice = state.persona.voice;
+    // Wie Menschen kürzen Bots lange Benutzernamen ab (le_sen1 -> lesen), lockere Typen öfter.
+    const short = shortNames(ctx.view.players);
+    const shortChance = voice.casual || voice.terse ? 0.6 : 0.2;
+    const names = [...ctx.view.players.map((p) => p.name), ...short.values()];
+    // Innerhalb einer Nachricht immer dieselbe Form pro Person.
+    const chosen = new Map<PlayerId, string>();
+    const name = (id: PlayerId) => {
+      if (!chosen.has(id)) {
+        const alias = short.get(id);
+        chosen.set(id, alias && this.random() < shortChance ? alias : (ctx.view.players.find((p) => p.id === id)?.name ?? id));
+      }
+      return chosen.get(id)!;
+    };
     const render = () =>
       styleMessage(
         renderIntent(intent, { lang: base, name, me: playerId, presentedRole: presentedRole(ctx.memory), random: this.random, voice }),
@@ -303,15 +313,17 @@ export class BotController {
         names,
         this.random,
       );
-    // Nicht wortgleich wiederholen, was gerade jemand geschrieben hat.
+    // Nicht wiederholen, was gerade jemand geschrieben hat, auch nicht mit vertauschten Namen.
+    const anyName = new RegExp([...names].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi');
+    const normalize = (message: string) => message.replace(anyName, '#').toLowerCase();
     const recent = new Set(
       ctx.view.events
         .filter((e) => e.type === 'chat')
         .slice(-10)
-        .map((e) => String(e.data?.message ?? '').toLowerCase()),
+        .map((e) => normalize(String(e.data?.message ?? ''))),
     );
     let text = render();
-    for (let attempt = 0; attempt < 3 && recent.has(text.toLowerCase()); attempt++) text = render();
+    for (let attempt = 0; attempt < 3 && recent.has(normalize(text)); attempt++) text = render();
     this.typing.add(playerId);
     this.options.onChange?.();
     if (target !== base && this.translator.canTranslate) {

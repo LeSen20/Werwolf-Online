@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BotController, personaFor, type BotControllerOptions } from '../src/bots';
+import { BotController, generateBotName, personaFor, shortNames, type BotControllerOptions } from '../src/bots';
+import { createRandom } from '../src/bots/random';
 import { Game, buildAutoDeck, type Command } from '../src/engine';
 import { createDefaultRegistry } from '../src/roles';
 import { detectGermanOrEnglish, type Translator } from '../src/translation';
@@ -35,6 +36,23 @@ function harness(game: Game, botIds: string[], options: Partial<BotControllerOpt
   return { controller, settle };
 }
 
+/** Spielt eine reine Bot-Partie bis zum Ende. */
+async function playToEnd(game: Game, bots: ReturnType<typeof harness>, label: string): Promise<void> {
+  for (let step = 0; step < 3000 && game.phase !== 'GAME_OVER'; step++) {
+    await bots.settle();
+    const decision = bots.controller.nextDecision();
+    if (decision) {
+      const result = game.dispatch(decision);
+      if (!result.ok) throw new Error(`${label}: ${result.error.message} ${JSON.stringify(decision)}`);
+    } else if (['DAY_ANNOUNCEMENT', 'DAY_DISCUSSION'].includes(game.phase)) {
+      ok(game.dispatch({ type: 'ADVANCE' }));
+    } else {
+      throw new Error(`${label}: keine Bot-Entscheidung in Phase ${game.phase}`);
+    }
+  }
+  expect(game.phase, label).toBe('GAME_OVER');
+}
+
 const chatOf = (game: Game, playerId: string) =>
   game
     .publicView()
@@ -58,19 +76,7 @@ describe('Partien mit Bots', () => {
       ok(game.dispatch({ type: 'START_GAME' }));
       ok(game.dispatch({ type: 'ADVANCE' }));
       const bots = harness(game, game.publicView().players.map((p) => p.id), { seed });
-      for (let step = 0; step < 3000 && game.phase !== 'GAME_OVER'; step++) {
-        await bots.settle();
-        const decision = bots.controller.nextDecision();
-        if (decision) {
-          const result = game.dispatch(decision);
-          if (!result.ok) throw new Error(`Seed ${seed}: ${result.error.message} ${JSON.stringify(decision)}`);
-        } else if (['DAY_ANNOUNCEMENT', 'DAY_DISCUSSION'].includes(game.phase)) {
-          ok(game.dispatch({ type: 'ADVANCE' }));
-        } else {
-          throw new Error(`Seed ${seed}: keine Bot-Entscheidung in Phase ${game.phase}`);
-        }
-      }
-      expect(game.phase, `Seed ${seed}`).toBe('GAME_OVER');
+      await playToEnd(game, bots, `Seed ${seed}`);
       chats += game.publicView().events.filter((e) => e.type === 'chat').length;
     }
     expect(chats).toBeGreaterThan(100);
@@ -121,6 +127,31 @@ describe('Partien mit Bots', () => {
     const reply = chatOf(game, 'p2').at(-1) ?? '';
     expect(reply.startsWith('FR:')).toBe(true);
     expect(bots.controller.conversationLanguage).toBe('fr');
+  });
+
+  it('Bots mit Benutzernamen verstehen Kurzformen und kürzen selbst ab', async () => {
+    const game = setupGame(['villager', 'werewolf', 'villager', 'villager', 'villager'], { names: ['Anna', 'le_sen1', 'jonas2003', 'nachteule7', 'xXFrostXx'] });
+    ok(use(game, 'p2', 'werewolf.kill', ['p5']));
+    const bots = harness(game, ['p2', 'p3', 'p4', 'p5']);
+    await bots.settle();
+    ok(game.dispatch({ type: 'CHAT', playerId: 'p1', text: 'lesen, bist du ein Werwolf?' }));
+    await bots.settle();
+    expect(chatOf(game, 'p2').at(-1) ?? '').toMatch(/dorfbewohner/i);
+
+    // Reine Bot-Partie mit erzeugten Namen: läuft durch, Kurzformen tauchen im Chat auf.
+    const random = createRandom(5);
+    const names: string[] = [];
+    for (let i = 0; i < 8; i++) names.push(generateBotName(random, names));
+    const registry = createDefaultRegistry();
+    const full = Game.create({ players: names.map((name) => ({ name })), roles: buildAutoDeck(registry, { playerCount: 8, werewolves: 2, specialRoles: ['seer', 'witch', 'hunter'] }), seed: 5 }, registry);
+    ok(full.dispatch({ type: 'START_GAME' }));
+    ok(full.dispatch({ type: 'ADVANCE' }));
+    const allBots = harness(full, full.publicView().players.map((p) => p.id), { seed: 5 });
+    await playToEnd(full, allBots, 'Benutzernamen');
+    const aliases = [...shortNames(full.publicView().players).values()];
+    const messages = full.publicView().events.filter((e) => e.type === 'chat').map((e) => String(e.data?.message));
+    expect(aliases.length).toBeGreaterThan(0);
+    expect(messages.some((m) => aliases.some((alias) => new RegExp(`(^|[^\\w])${alias}([^\\w]|$)`, 'i').test(m)))).toBe(true);
   });
 
   it('Bots im Rudel folgen der Wahl eines menschlichen Werwolfs', () => {

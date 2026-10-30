@@ -1,4 +1,4 @@
-import { PERSONAS } from '../bots';
+import { PERSONAS, generateBotName } from '../bots';
 import {
   DEFAULT_RULES,
   DEFAULT_TIMERS,
@@ -57,9 +57,11 @@ function load(): Stored {
   }
 }
 
-function save(state: SetupState): void {
+/** Erzeugte Bot-Namen werden nicht gespeichert, damit jede Partie neue bekommt. */
+function save(state: SetupState, generated: ReadonlySet<string>): void {
+  const names = state.names.map((name, i) => (state.bots[i] && generated.has(name) ? '' : name));
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ names: state.names, bots: state.bots, libreTranslateUrl: state.libreTranslateUrl }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ names, bots: state.bots, libreTranslateUrl: state.libreTranslateUrl }));
   } catch {
     // Speicher nicht verfügbar: Einstellungen gelten nur für diese Sitzung.
   }
@@ -76,6 +78,8 @@ export class SetupScreen {
   private readonly onStart: (request: StartRequest) => void;
   private readonly rerender: () => void;
   private readonly state: SetupState;
+  /** Vom Generator vergebene, unveränderte Bot-Namen. */
+  private readonly generated = new Set<string>();
   private summary: HTMLElement | null = null;
   private startButton: HTMLButtonElement | null = null;
 
@@ -104,6 +108,11 @@ export class SetupScreen {
       discussion: DEFAULT_TIMERS.discussion,
       libreTranslateUrl: typeof stored.libreTranslateUrl === 'string' ? stored.libreTranslateUrl : '',
     };
+    // Früher gespeicherte Persona-Namen (Greta, Jonas, ...) ebenfalls neu vergeben.
+    for (const [i, name] of names.entries()) {
+      if (bots[i] && PERSONAS.some((p) => p.id === name.trim().toLowerCase())) this.generated.add(name);
+    }
+    this.renewBotNames();
   }
 
   private deck(): Record<RoleId, number> {
@@ -127,10 +136,29 @@ export class SetupScreen {
     };
   }
 
-  /** Freier Persona-Name für einen neuen Bot. */
-  private botName(): string {
+  /** Zufälliger Benutzername für den Bot auf Platz index, verschieden von allen anderen Namen. */
+  private botName(index: number): string {
+    const name = generateBotName(Math.random, this.state.names.filter((_, i) => i !== index));
+    this.generated.add(name);
+    return name;
+  }
+
+  /** Erster freier Ersatzname "Spieler N". */
+  private defaultName(): string {
     const used = new Set(this.state.names.map((n) => n.trim().toLowerCase()));
-    return PERSONAS.find((p) => !used.has(p.name.toLowerCase()))?.name ?? `Bot ${this.state.names.length + 1}`;
+    let n = 1;
+    while (used.has(`spieler ${n}`)) n++;
+    return `Spieler ${n}`;
+  }
+
+  /** Neue Namen für Bots mit erzeugtem oder leerem Namen (all: auch selbst gewählte). Aufruf vor jeder neuen Partie. */
+  renewBotNames(all = false): void {
+    const s = this.state;
+    s.names.forEach((name, i) => {
+      if (!s.bots[i] || !(all || this.generated.has(name) || isDefaultName(name))) return;
+      this.generated.delete(name);
+      s.names[i] = this.botName(i);
+    });
   }
 
   /** Aktualisiert nur Zusammenfassung und Startknopf (Eingabefelder behalten den Fokus). */
@@ -207,6 +235,7 @@ export class SetupScreen {
                 maxlength: 24,
                 'aria-label': `Name von Spieler ${index + 1}`,
                 oninput: (e: Event) => {
+                  this.generated.delete(s.names[index]);
                   s.names[index] = (e.target as HTMLInputElement).value;
                   this.refresh();
                 },
@@ -219,7 +248,11 @@ export class SetupScreen {
                   checked: s.bots[index],
                   onchange: (e: Event) => {
                     s.bots[index] = (e.target as HTMLInputElement).checked;
-                    if (s.bots[index] && isDefaultName(s.names[index])) s.names[index] = this.botName();
+                    if (s.bots[index] && isDefaultName(s.names[index])) {
+                      s.names[index] = this.botName(index);
+                    } else if (!s.bots[index] && this.generated.delete(s.names[index])) {
+                      s.names[index] = this.defaultName();
+                    }
                     this.rerender();
                   },
                 }),
@@ -236,19 +269,21 @@ export class SetupScreen {
       ],
       [
         button('Spieler hinzufügen', () => {
-          s.names.push(`Spieler ${s.names.length + 1}`);
+          s.names.push(this.defaultName());
           s.bots.push(false);
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
         button('Bot hinzufügen', () => {
-          s.names.push(this.botName());
+          s.names.push('');
           s.bots.push(true);
+          s.names[s.names.length - 1] = this.botName(s.names.length - 1);
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
         button('Einzelspieler gegen Bots', () => {
           s.bots = s.names.map((_, i) => i > 0);
-          s.names = s.names.map((name, i) => (i === 0 ? name : ''));
-          for (let i = 1; i < s.names.length; i++) s.names[i] = this.botName();
+          if (this.generated.delete(s.names[0])) s.names[0] = '';
+          s.names = s.names.map((name, i) => (i === 0 ? name || 'Spieler 1' : ''));
+          for (let i = 1; i < s.names.length; i++) s.names[i] = this.botName(i);
           this.rerender();
           // Eigenen Namen gleich eintippen lassen. Ein Ersatzname wie "Du" ergäbe schiefe Bot-Sätze ("Du ist verdächtig").
           if (isDefaultName(s.names[0])) {
@@ -257,6 +292,10 @@ export class SetupScreen {
             input?.select();
           }
         }, 'secondary'),
+        button('Neue Bot-Namen', () => {
+          this.renewBotNames(true);
+          this.rerender();
+        }, 'secondary', !s.bots.some(Boolean)),
       ],
     );
 
@@ -350,7 +389,7 @@ export class SetupScreen {
     ]);
 
     this.startButton = button('Spiel starten', () => {
-      save(s);
+      save(s, this.generated);
       this.onStart({
         config: this.buildConfig(),
         botIndices: s.bots.flatMap((bot, index) => (bot ? [index] : [])),

@@ -5,6 +5,7 @@
  */
 import type { PlayerId, RoleId } from '../engine';
 import { detectGermanOrEnglish } from '../translation';
+import { nameAliases } from './names';
 import type { Claim, ClaimDraft, QuestionTopic } from './types';
 
 export interface Named {
@@ -63,12 +64,59 @@ const ROLE_CLAIM = /\b(?:ich bin|bin ich|i am|i'm|im)\s+(?:der |die |das |ein |e
 
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Spieler, deren Name als ganzes Wort im Text vorkommt. */
-export function findMentions(text: string, players: readonly Named[]): PlayerId[] {
-  const lower = text.toLowerCase();
-  return players
-    .filter((p) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(p.name.toLowerCase())}($|[^\\p{L}\\p{N}])`, 'u').test(lower))
-    .map((p) => p.id);
+interface MentionForm {
+  id: PlayerId;
+  form: string;
+}
+
+/**
+ * Eindeutige Nennformen: jeder volle Name und jede Kurzform, die nur zu einem Spieler passt.
+ * Längste zuerst, damit "le_sen1" vor "le_sen" ersetzt wird.
+ */
+function mentionForms(players: readonly Named[]): MentionForm[] {
+  const fullNames = new Map(players.map((p) => [p.name.trim().toLowerCase(), p.id]));
+  const owners = new Map<string, Set<PlayerId>>();
+  for (const player of players) {
+    for (const form of nameAliases(player.name)) owners.set(form, (owners.get(form) ?? new Set()).add(player.id));
+  }
+  const forms: MentionForm[] = [];
+  for (const [form, ids] of owners) {
+    const id = fullNames.get(form) ?? (ids.size === 1 ? [...ids][0] : undefined);
+    if (id) forms.push({ id, form });
+  }
+  return forms.sort((a, b) => b.form.length - a.form.length);
+}
+
+/** Name als ganzes Wort; Unterstrich und Ziffern gehören zum Namen ("max" passt nicht auf "max_99"). */
+const mentionPattern = (form: string, flags = 'u') => new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegex(form)}(?=$|[^\\p{L}\\p{N}_])`, flags);
+
+function mentionsIn(lower: string, forms: readonly MentionForm[], players: readonly Named[], excludeId?: PlayerId): PlayerId[] {
+  const found = new Set(forms.filter((f) => f.id !== excludeId && mentionPattern(f.form).test(lower)).map((f) => f.id));
+  return players.filter((p) => found.has(p.id)).map((p) => p.id);
+}
+
+/** Ersetzt Namen durch "#", damit Namen wie "Wolfgang" keine Schlüsselwörter auslösen. */
+function maskNames(lower: string, forms: readonly MentionForm[]): string {
+  return forms.reduce((text, f) => text.replace(mentionPattern(f.form, 'gu'), '$1#'), lower);
+}
+
+/** Spieler, die im Text mit vollem Namen oder eindeutiger Kurzform genannt werden. */
+export function findMentions(text: string, players: readonly Named[], excludeId?: PlayerId): PlayerId[] {
+  return mentionsIn(text.toLowerCase(), mentionForms(players), players, excludeId);
+}
+
+/** Kurzform je Spieler, wie Mitspieler ihn im Chat nennen würden (nur wenn eindeutig, z.B. le_sen1 -> lesen). */
+export function shortNames(players: readonly Named[]): Map<PlayerId, string> {
+  const forms = mentionForms(players);
+  const result = new Map<PlayerId, string>();
+  for (const player of players) {
+    const full = player.name.trim().toLowerCase();
+    const best = forms
+      .filter((f) => f.id === player.id && f.form.length <= full.length - 2)
+      .sort((a, b) => a.form.length - b.form.length)[0];
+    if (best) result.set(player.id, best.form);
+  }
+  return result;
 }
 
 function roleFromWord(word: string, roles: readonly Named[]): RoleId | null {
@@ -81,37 +129,39 @@ function roleFromWord(word: string, roles: readonly Named[]): RoleId | null {
 
 export function extractClaimsOffline(text: string, speakerId: PlayerId, players: readonly Named[], roles: readonly Named[]): ExtractedMessage {
   const lower = text.toLowerCase();
-  const others = players.filter((p) => p.id !== speakerId);
+  const forms = mentionForms(players);
+  const masked = maskNames(lower, forms);
   const claims: ClaimDraft[] = [];
 
   let claimedRole: RoleId | null = null;
-  for (const match of lower.matchAll(ROLE_CLAIM)) {
+  for (const match of masked.matchAll(ROLE_CLAIM)) {
     const roleId = roleFromWord(match[1], roles);
     if (roleId) {
       claimedRole = roleId;
       claims.push({ kind: 'role', targetId: null, roleId, result: null });
     }
   }
-  const seerTalk = claimedRole === 'seer' || SEEN.test(lower);
+  const seerTalk = claimedRole === 'seer' || SEEN.test(masked);
 
   for (const clause of lower.split(/[.!?;\n]|,|\bund\b|\band\b|\baber\b|\bbut\b/u)) {
-    for (const targetId of findMentions(clause, others)) {
-      const negated = NEGATION.test(clause);
-      const wolfWord = WOLF.test(clause);
-      if (seerTalk && (wolfWord || INNOCENT.test(clause))) {
+    const bare = maskNames(clause, forms);
+    for (const targetId of mentionsIn(clause, forms, players, speakerId)) {
+      const negated = NEGATION.test(bare);
+      const wolfWord = WOLF.test(bare);
+      if (seerTalk && (wolfWord || INNOCENT.test(bare))) {
         claims.push({ kind: 'investigation', targetId, roleId: null, result: wolfWord && !negated ? 'werewolf' : 'not-werewolf' });
         continue;
       }
-      if (VOTE.test(clause)) claims.push({ kind: 'vote', targetId, roleId: null, result: null });
-      if ((wolfWord && !negated) || (SUSPECT.test(clause) && !negated)) claims.push({ kind: 'accuse', targetId, roleId: null, result: null });
-      else if (INNOCENT.test(clause) || (wolfWord && negated)) claims.push({ kind: 'defend', targetId, roleId: null, result: null });
+      if (VOTE.test(bare)) claims.push({ kind: 'vote', targetId, roleId: null, result: null });
+      if ((wolfWord && !negated) || (SUSPECT.test(bare) && !negated)) claims.push({ kind: 'accuse', targetId, roleId: null, result: null });
+      else if (INNOCENT.test(bare) || (wolfWord && negated)) claims.push({ kind: 'defend', targetId, roleId: null, result: null });
     }
   }
 
   return {
     language: detectGermanOrEnglish(text),
     claims,
-    addressed: findMentions(text, others),
+    addressed: mentionsIn(lower, forms, players, speakerId),
     isQuestion: text.includes('?'),
   };
 }

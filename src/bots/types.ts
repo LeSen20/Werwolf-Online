@@ -31,9 +31,9 @@ export interface Voice {
   terse: boolean;
 }
 
+/** Persönlichkeit eines Bots (Sprechstil, Avatar); der Anzeigename wird je Partie erzeugt. */
 export interface Persona {
   id: string;
-  name: string;
   /** Beschreibung des Charakters (Anzeige). */
   style: string;
   voice: Voice;
