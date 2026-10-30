@@ -13,8 +13,10 @@ export type IconKey = 'dead' | 'lover' | 'pack' | 'bot';
 export type SoundKey = 'nightStart' | 'dayStart' | 'death' | 'vote' | 'chat' | 'gameOver';
 
 export interface AssetConfig {
-  /** Kartenvorderseiten je Rollen-ID. */
+  /** Kartenvorderseiten je Rollen-ID: komplette Karte 192 x 288 mit Rahmen, Titel und Text. */
   cards: Partial<Record<string, string>>;
+  /** Optional: animierte Karten je Rollen-ID als Sprite-Sheet-JSON (Aseprite-Format, siehe cardAnimation.ts). */
+  cardAnimations: Partial<Record<string, string>>;
   cardBack: string | null;
   backgrounds: Record<'setup' | 'night' | 'day' | 'gameOver', string | null>;
   /** Optional: Hochformat-Varianten für Handys; ohne Eintrag wird das Querformat beschnitten. */
@@ -27,7 +29,8 @@ export interface AssetConfig {
 }
 
 export const ASSETS: AssetConfig = {
-  cards: {},
+  cards: { werewolf: 'assets/cards/werewolf.png' },
+  cardAnimations: { werewolf: 'assets/cards/werewolf-sheet.json' },
   cardBack: null,
   backgrounds: { setup: null, night: null, day: null, gameOver: null },
   backgroundsPortrait: {},

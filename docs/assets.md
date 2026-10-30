@@ -1,6 +1,6 @@
 # Grafikliste (Pixelgrafik, Retro-Stil)
 
-30 Grafiken, dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
+30 Grafiken (davon fertig: Werwolf-Karte), dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
 
 Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
@@ -8,26 +8,27 @@ Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
 - **Originalgröße:** Jede Grafik in der unten genannten Größe (1x) als PNG speichern, nicht selbst vergrößern. Das Spiel vergrößert immer um ganze Faktoren (2x, 3x, 4x ...) und ohne Weichzeichnen, so bleiben alle Pixel gleich groß und scharf.
 - **Harte Kanten:** Keine Kantenglättung, keine weichen Pinsel, keine Verläufe aus Halbtransparenz. Transparenz nur ganz oder gar nicht.
-- **Eine Palette:** Eine feste Farbpalette für alle Grafiken verwenden, z.B. PICO-8 oder Sweetie 16 (je 16 Farben) oder Endesga 32 (32 Farben), zu finden in der Palettenliste auf lospec.com. Das sorgt für den einheitlichen Retro-Look.
-- **Kein Text in Bildern** (außer im Logo): Namen und Beschriftungen zeichnet das Spiel, so bleiben die Grafiken sprachunabhängig.
+- **Eine Palette:** Die Farben der Werwolf-Karte verwenden (Pergament, Holz, Gold, Nachtblau, Blutrot), damit Karten, Hintergründe und Oberfläche zusammenpassen. Die Oberfläche nutzt dieselben Farben.
+- **Kein Text in Bildern** außer im Logo und auf den Rollenkarten (dort gehören Titel und Beschreibung zum Design, sie bleiben dann aber deutsch, auch wenn im Chat übersetzt wird).
 - **Werkzeuge:** Aseprite (kostenpflichtig) oder kostenlos LibreSprite, Pixelorama, Piskel (im Browser).
 - **Dateinamen:** klein und ohne Leerzeichen, genau wie unten. Ablage in `public/assets/`, Eintrag in `src/ui/assets.ts` (oder mir schicken).
 
 ## 1. Rollenkarten (8)
 
-| Datei | Rolle | Rahmen (zeichnet das Spiel) |
+| Datei | Rolle | Stand |
 | --- | --- | --- |
-| `cards/werewolf.png` | Werwolf | rot |
-| `cards/villager.png` | Dorfbewohner | grün |
-| `cards/seer.png` | Seherin | grün |
-| `cards/witch.png` | Hexe | grün |
-| `cards/hunter.png` | Jäger | grün |
-| `cards/cupid.png` | Amor | grün |
-| `cards/thief.png` | Dieb | grün |
-| `cards/back.png` | Rückseite | neutral |
+| `cards/werewolf.png` | Werwolf | fertig, auch animiert |
+| `cards/villager.png` | Dorfbewohner | Platzhalter |
+| `cards/seer.png` | Seherin | Platzhalter |
+| `cards/witch.png` | Hexe | Platzhalter |
+| `cards/hunter.png` | Jäger | Platzhalter |
+| `cards/cupid.png` | Amor | Platzhalter |
+| `cards/thief.png` | Dieb | Platzhalter |
+| `cards/back.png` | Rückseite | Platzhalter |
 
-- **48 x 72 Pixel** (Hochformat 2:3). Angezeigt 4x (192 x 288) beim Rolle-Ansehen und 2x (96 x 144) in der Endübersicht. Für mehr Details geht auch 96 x 144 (dann 2x und 1x).
-- Motiv bis an den Rand, ohne eigenen Rahmen und ohne Namen: Das Spiel zeichnet einen Rahmen in Fraktionsfarbe und darunter den Rollennamen. Kein transparenter Hintergrund.
+- **Komplette Karte wie die Werwolf-Karte: 192 x 288 Pixel** (2:3) mit eigenem Rahmen, Titel und Beschreibung. Das Spiel zeichnet keinen zusätzlichen Rahmen. Die abgenutzte Außenkante darf transparent sein.
+- Angezeigt 1x auf Handys, 2x (384 x 576) auf großen Bildschirmen, als Vorschau in der Endübersicht verkleinert (0,5x) mit dem Rollennamen darunter.
+- **Animation (optional):** Sprite-Sheet mit JSON im Aseprite-Format wie `cards/werewolf-sheet.png` und `.json`: Clips als `frameTags`, Reihenfolge in `meta.playlist`, `meta.fps`. Beim Aufdecken läuft `howl` (falls vorhanden), danach die Playlist. Eintrag unter `cardAnimations`.
 - Die Rückseite ist für alle Karten gleich und darf keine Rolle verraten.
 - Neue Rollen brauchen später je eine Karte mit ihrer Rollen-ID als Dateiname.
 

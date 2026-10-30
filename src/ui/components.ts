@@ -1,5 +1,6 @@
 import { FACTION_LABELS, type DecisionPrompt, type GameEvent, type PlayerId, type PlayerSummary, type PlayerView, type RoleInfo } from '../engine';
 import { ASSETS, assetUrl, type IconKey } from './assets';
+import { cardAnimation } from './cardAnimation';
 import { button, h, type Child } from './dom';
 
 export type Theme = 'setup' | 'night' | 'day' | 'gameOver';
@@ -14,7 +15,10 @@ export function panel(title: string, body: Child[], actions: Child[] = []): HTML
   );
 }
 
-/** Rollenkarte: hinterlegte Grafik oder Platzhalter in der Farbe der Fraktion. */
+/**
+ * Rollenkarte: komplette Kartengrafik (mit eigenem Rahmen, Titel und Text; groß auch animiert)
+ * oder ein Platzhalter im selben Aufbau. Kleine Karten zeigen den Namen lesbar darunter.
+ */
 export function roleCard(role: RoleInfo | null, size: 'small' | 'large' = 'large'): HTMLElement {
   if (!role) {
     return h(
@@ -26,12 +30,18 @@ export function roleCard(role: RoleInfo | null, size: 'small' | 'large' = 'large
     );
   }
   const image = ASSETS.cards[role.id];
+  if (image) {
+    return h(
+      'div',
+      { class: `card card-${size} card-art faction-${role.faction}` },
+      h('img', { src: assetUrl(image), alt: role.name }),
+      size === 'large' ? cardAnimation(role.id) : h('div', { class: 'card-name' }, role.name),
+    );
+  }
   return h(
     'div',
     { class: `card card-${size} faction-${role.faction}` },
-    image
-      ? h('img', { src: assetUrl(image), alt: role.name })
-      : h('div', { class: 'card-placeholder' }, h('span', { class: 'card-initial' }, role.name.charAt(0)), h('span', { class: 'placeholder-label' }, 'Grafik folgt')),
+    h('div', { class: 'card-placeholder' }, h('span', { class: 'card-initial' }, role.name.charAt(0)), h('span', { class: 'placeholder-label' }, 'Grafik folgt')),
     h('div', { class: 'card-name' }, role.name),
   );
 }

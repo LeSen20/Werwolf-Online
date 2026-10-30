@@ -415,6 +415,11 @@ export class SetupScreen {
       rulesSection,
       translationSection,
       h('div', { class: 'actions start' }, this.startButton),
+      h(
+        'p',
+        { class: 'credits' },
+        'Schriften: Righteous von Otter and Bench (CC BY 4.0), Umlaute ergänzt; Pixelify Sans (SIL Open Font License).',
+      ),
     );
     this.refresh();
     return element;

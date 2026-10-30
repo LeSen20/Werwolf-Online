@@ -1,35 +1,44 @@
 /*
- * Retro-Design passend zur Pixelgrafik: Pixelschrift, eckige Formen, harte Schatten ohne Unschärfe.
- * Farben als Tokens, Hintergrundbilder kommen aus src/ui/assets.ts.
+ * Design im Stil der Rollenkarten: Pergament im Holzrahmen mit Goldeinlage, Nachthimmel, Blutrot.
+ * Farben aus der Palette der Werwolf-Karte, Pixelschrift, eckige Formen, harte Schatten.
+ * Hintergrundbilder kommen aus src/ui/assets.ts.
  */
 
 /*
- * Righteous (Otter and Bench): Pixelschrift mit 8 Pixeln pro em, scharf nur bei 8, 16, 24, 32 px.
- * Ihr fehlen u.a. ä ö ü ß; diese Zeichen kommen aus der Pixelify Sans, font-size-adjust gleicht
- * die x-Höhe an (Righteous: 0.625).
+ * Righteous von Otter and Bench (CC BY 4.0), Umlaute und ß ergänzt wie auf der Werwolf-Karte.
+ * 8 Pixel pro em: scharf nur bei 8, 16, 24, 32 px. Fehlende Zeichen (z.B. „ – …) kommen aus der
+ * Pixelify Sans, font-size-adjust gleicht die x-Höhe an (Righteous: 0.625).
  */
 @font-face {
   font-family: 'Righteous';
-  src: url('./fonts/Righteous.ttf') format('truetype');
+  src: url('./fonts/Righteous-umlaute.ttf') format('truetype');
   font-display: swap;
 }
 
 :root {
-  --bg: #efe9dd;
-  --surface: #fffdf8;
-  --text: #22201c;
-  --muted: #6f685c;
-  --border: #d8cfbf;
-  --accent: #7a3e1d;
-  --accent-text: #fffaf2;
-  --chip: #ece4d4;
-  --danger: #a3262a;
-  --village: #3f7d4e;
-  --werewolves: #9b2c2c;
-  --neutral: #6b5b95;
-  /* Kräftige Umrisse und harte Schatten im Retro-Stil. */
-  --line: #22201c;
-  --shadow: rgba(34, 32, 28, 0.35);
+  /* Seite (je Phase anders) und Schrift direkt darauf. */
+  --page: #261912;
+  --page-text: #e3d3aa;
+  --page-muted: #a28a61;
+  /* Pergament-Flächen wie der Kartenrahmen. */
+  --surface: #e3d3aa;
+  --surface-2: #d3bf93;
+  --field: #f2f0e6;
+  --text: #150e0b;
+  --muted: #5a3f28;
+  --border: #a28a61;
+  --chip: #d3bf93;
+  /* Holz, Gold, Blutrot, Nacht. */
+  --line: #261912;
+  --gold: #a88b45;
+  --accent: #961f1e;
+  --accent-text: #f2f0e6;
+  --danger: #961f1e;
+  --night: #0f142b;
+  --village: #35426e;
+  --werewolves: #961f1e;
+  --neutral: #7f6630;
+  --shadow: rgba(7, 7, 12, 0.55);
   --font-display: 'Righteous', 'Pixelify Sans', system-ui, sans-serif;
   --font-body: 'Pixelify Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-family: var(--font-body);
@@ -39,30 +48,18 @@
   font-variant-ligatures: none;
 }
 
+/* Phasen unterscheiden sich nur im Hintergrund: Holz (Vorbereitung), helleres Holz (Tag), Nacht. */
+body[data-theme='day'] {
+  --page: #5a3f28;
+}
+
 body[data-theme='night'] {
-  --bg: #0e1322;
-  --surface: #182038;
-  --text: #e7e5f0;
-  --muted: #9ea4bd;
-  --border: #2c3658;
-  --accent: #c9a227;
-  --accent-text: #15120a;
-  --chip: #26304f;
-  --line: #05070d;
-  --shadow: rgba(0, 0, 0, 0.55);
+  --page: #0c0e20;
+  --page-muted: #a3a9c2;
 }
 
 body[data-theme='gameOver'] {
-  --bg: #1d1a24;
-  --surface: #29243a;
-  --text: #f1edf8;
-  --muted: #b3abc7;
-  --border: #40385a;
-  --accent: #c9a227;
-  --accent-text: #15120a;
-  --chip: #3a3352;
-  --line: #0b0910;
-  --shadow: rgba(0, 0, 0, 0.55);
+  --page: #07070c;
 }
 
 * {
@@ -72,8 +69,8 @@ body[data-theme='gameOver'] {
 body {
   margin: 0;
   min-height: 100vh;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--page-text);
+  background: var(--page);
   transition: background-color 0.4s;
   /* Pixelschrift ohne Kantenglättung, wo der Browser das erlaubt (macOS). */
   -webkit-font-smoothing: none;
@@ -102,7 +99,9 @@ body::before {
 }
 
 .topbar {
+  color: var(--page-text);
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   padding: 12px 0;
@@ -123,13 +122,26 @@ body::before {
   font-family: var(--font-display);
   font-weight: 400;
   font-size-adjust: 0.625;
+  /* Natürliche Zeilenhöhe der Schrift (13 Pixel): nichts überlappt, alles bleibt im Pixelraster. */
+  line-height: 1.625;
+}
+
+/* Rote Initiale wie im Kartentitel. */
+.panel h2::first-letter,
+.actor h3::first-letter,
+.prompt h3::first-letter {
+  color: var(--accent);
 }
 
 .logo-text {
+  display: inline-block;
   font-size: 24px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-shadow: 2px 2px 0 var(--shadow);
+  letter-spacing: 3px;
+  text-shadow: 3px 3px 0 var(--shadow);
+}
+
+.logo-text::first-letter {
+  color: #d33427;
 }
 
 /* Pixelgrafik: ganzzahlig vergrößern (Logo 24 px hoch -> 2x), nie weichzeichnen. */
@@ -139,7 +151,7 @@ body::before {
 }
 
 .phase {
-  color: var(--muted);
+  color: var(--page-muted);
   font-size: 0.85rem;
 }
 
@@ -147,11 +159,16 @@ body::before {
   flex: 1;
 }
 
+/* Pergament im Holzrand mit Goldeinlage, wie der Rahmen der Rollenkarten. */
 .panel {
+  color: var(--text);
   background: var(--surface);
   border: 2px solid var(--line);
-  box-shadow: 4px 4px 0 var(--shadow);
-  padding: 18px;
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    inset 0 0 0 4px var(--gold),
+    4px 4px 0 var(--shadow);
+  padding: 20px;
   margin-top: 14px;
 }
 
@@ -206,14 +223,15 @@ button:active:not(:disabled) {
 
 button.secondary,
 button.choice {
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
 }
 
 button.choice.selected,
 button.selected {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--line);
+  color: var(--surface);
+  border-color: var(--gold);
 }
 
 button.small {
@@ -224,7 +242,7 @@ button.small {
 }
 
 button.danger {
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--danger);
   border-color: var(--danger);
   box-shadow: 3px 3px 0 var(--danger);
@@ -242,8 +260,8 @@ select {
   padding: 7px 10px;
   border-radius: 0;
   border: 2px solid var(--line);
-  box-shadow: inset 2px 2px 0 var(--shadow);
-  background: var(--surface);
+  box-shadow: inset 2px 2px 0 rgba(21, 14, 11, 0.2);
+  background: var(--field);
   color: var(--text);
   min-width: 0;
 }
@@ -326,10 +344,10 @@ input[type='checkbox'] {
 .message {
   margin-top: 12px;
   padding: 10px 14px;
-  border: 2px solid #7a1c1c;
+  border: 2px solid var(--danger);
   box-shadow: 3px 3px 0 var(--shadow);
-  background: #fde8e8;
-  color: #7a1c1c;
+  background: var(--field);
+  color: var(--danger);
 }
 
 .narration {
@@ -384,36 +402,51 @@ input[type='checkbox'] {
   color: var(--danger);
 }
 
-/* ---- Karten-Platzhalter: werden durch Grafiken aus assets.ts ersetzt ---- */
+/* ---- Rollenkarten: komplette Kartengrafik (192 x 288) oder Platzhalter im selben Aufbau ---- */
 .card {
   --card-color: var(--muted);
+  position: relative;
   display: flex;
   flex-direction: column;
-  border: 4px solid var(--card-color);
-  box-shadow: 4px 4px 0 var(--shadow);
-  overflow: hidden;
+  gap: 6px;
+  aspect-ratio: 2 / 3;
+  padding: 8px;
   background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    inset 0 0 0 4px var(--gold),
+    4px 4px 0 var(--shadow);
+  color: var(--text);
   margin: 8px auto;
 }
 
-/* Kartenbild 48 x 72: groß 4x (192 x 288), klein 2x (96 x 144), jeweils plus Rahmen. */
+/* Groß 1x (192 x 288), auf großen Bildschirmen 2x; klein 0,5x als Vorschaubild. */
 .card-large {
-  width: 200px;
+  width: 192px;
 }
 
 .card-small {
-  width: 100px;
-  border-width: 2px;
-  box-shadow: 2px 2px 0 var(--shadow);
+  width: 96px;
+  padding: 4px;
+  gap: 3px;
+  box-shadow:
+    inset 0 0 0 1px var(--surface),
+    inset 0 0 0 2px var(--gold),
+    2px 2px 0 var(--shadow);
   margin: 4px auto;
 }
 
-.card img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  image-rendering: pixelated;
+@media (min-width: 720px) and (min-height: 820px) {
+  .card-large {
+    width: 384px;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .card-large .card-name {
+    font-size: 16px;
+  }
 }
 
 .card.faction-village {
@@ -428,50 +461,99 @@ input[type='checkbox'] {
   --card-color: var(--neutral);
 }
 
-.card-placeholder {
+/* Kartengrafik mit eigenem Rahmen, Titel und Text: ohne zusätzlichen Rahmen anzeigen. */
+.card-art {
+  aspect-ratio: auto;
+  padding: 0;
+  gap: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.card-art img,
+.card-canvas {
+  display: block;
+  width: 100%;
   aspect-ratio: 2 / 3;
+  image-rendering: pixelated;
+}
+
+.card-canvas {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+/* 0,5x lässt bei Pixelgrafik jedes zweite Pixel weg: Vorschaubilder daher glatt verkleinern. */
+.card-small.card-art img {
+  image-rendering: auto;
+}
+
+/* Platzhalter: Titel oben wie in der Kartusche, darunter das dunkle Bildfeld. */
+.card-name {
+  order: -1;
+  padding: 2px 4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-size-adjust: 0.625;
+  line-height: 1.625;
+  background: var(--field);
+  border: 2px solid var(--line);
+}
+
+.card-name::first-letter {
+  color: var(--accent);
+}
+
+/* Kleine Karten: Name lesbar unter dem Bild statt als winzige Kartusche. */
+.card-small .card-name {
+  order: 1;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-size-adjust: none;
+  line-height: 1.3;
+  padding: 1px 2px;
+  border-width: 1px;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.card-art .card-name {
+  margin-top: 3px;
+}
+
+.card-placeholder {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: repeating-linear-gradient(45deg, transparent 0 10px, color-mix(in srgb, var(--card-color) 18%, transparent) 10px 20px);
+  background: var(--night);
+  border: 2px solid var(--card-color);
 }
 
 .card-initial {
-  font-size: 2.6rem;
-  font-weight: 700;
-  color: var(--card-color);
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-size-adjust: 0.625;
+  line-height: 1.625;
+  color: var(--surface);
 }
 
 .card-small .card-initial {
-  font-size: 1.4rem;
+  font-size: 16px;
 }
 
-.card-small .card-name {
-  font-size: 0.68rem;
-  overflow-wrap: anywhere;
-  hyphens: auto;
-}
-
-.card-name {
-  text-align: center;
-  padding: 4px;
-  font-weight: 700;
-  background: var(--card-color);
-  color: #fff;
-  font-size: 0.9rem;
-}
-
-.card-back {
-  align-items: center;
-  justify-content: center;
-  background: repeating-linear-gradient(-45deg, var(--chip) 0 8px, var(--surface) 8px 16px);
+.card-back .card-placeholder {
+  border-color: var(--gold);
 }
 
 .placeholder-label {
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--page-muted);
 }
 
 .card-row {
@@ -583,4 +665,11 @@ input[type='checkbox'] {
 
 .icon-text:empty {
   display: none;
+}
+
+.credits {
+  margin-top: 24px;
+  font-size: 0.75rem;
+  color: var(--page-muted);
+  text-align: center;
 }

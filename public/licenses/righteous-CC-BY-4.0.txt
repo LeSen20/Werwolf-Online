@@ -1,0 +1,4 @@
+Righteous
+Schrift von Otter and Bench, https://otter-and-bench.itch.io/righteous
+Lizenz: Creative Commons Namensnennung 4.0 International (CC BY 4.0), https://creativecommons.org/licenses/by/4.0/
+Änderungen: Umlaute (ä ö ü Ä Ö Ü) und ß ergänzt (Grundbuchstabe plus zwei Punkte, ß als zwei s), digitale Signatur entfernt.
