@@ -258,11 +258,22 @@ export class SetupScreen {
                 }),
                 'Bot',
               ),
-              button('Entfernen', () => {
-                s.names.splice(index, 1);
-                s.bots.splice(index, 1);
-                this.rerender();
-              }, 'small secondary', s.names.length <= MIN_PLAYERS),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'small secondary',
+                  'aria-label': `Spieler ${index + 1} entfernen`,
+                  title: 'Entfernen',
+                  disabled: s.names.length <= MIN_PLAYERS,
+                  onclick: () => {
+                    s.names.splice(index, 1);
+                    s.bots.splice(index, 1);
+                    this.rerender();
+                  },
+                },
+                '×',
+              ),
             ),
           ),
         ),

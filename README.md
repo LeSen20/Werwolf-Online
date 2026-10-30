@@ -92,7 +92,7 @@ Die Bots laufen ohne KI-Dienst und ohne API-Schlüssel. Sie verstehen und schrei
 
 ## Grafiken
 
-Alle Grafiken und Töne laufen über `src/ui/assets.ts`. Dateien in `public/assets/` ablegen und dort eintragen, z.B. `cards: { werewolf: 'assets/cards/werewolf.png' }`. Fehlt ein Eintrag (auch bei neuen Rollen), erscheint automatisch ein Platzhalter. Die Grafiken sind Pixelgrafik im Retro-Stil: PNG in Originalgröße, das Spiel vergrößert ganzzahlig und ohne Weichzeichnen. Die vollständige Liste mit Dateinamen, Pixelmaßen und Hinweisen steht in [docs/assets.md](docs/assets.md).
+Alle Grafiken und Töne laufen über `src/ui/assets.ts`. Dateien in `public/assets/` ablegen und dort eintragen, z.B. `cards: { werewolf: 'assets/cards/werewolf.png' }`. Fehlt ein Eintrag (auch bei neuen Rollen), erscheint automatisch ein Platzhalter. Die Grafiken sind Pixelgrafik im Retro-Stil: PNG in Originalgröße, das Spiel vergrößert ganzzahlig und ohne Weichzeichnen. Die Oberfläche ist passend gestaltet (eckige Formen, harte Schatten) und nutzt die Pixelschrift Pixelify Sans (SIL Open Font License, Lizenz in `public/licenses/`). Die Schrift wird mit dem Spiel ausgeliefert, nicht von Google-Servern geladen. Die vollständige Liste mit Dateinamen, Pixelmaßen und Hinweisen steht in [docs/assets.md](docs/assets.md).
 
 ## Neue Rolle hinzufügen
 

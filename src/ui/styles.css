@@ -1,4 +1,7 @@
-/* Platzhalter-Design. Farben als Tokens, Hintergrundbilder kommen aus src/ui/assets.ts. */
+/*
+ * Retro-Design passend zur Pixelgrafik: Pixelschrift, eckige Formen, harte Schatten ohne Unschärfe.
+ * Farben als Tokens, Hintergrundbilder kommen aus src/ui/assets.ts.
+ */
 :root {
   --bg: #efe9dd;
   --surface: #fffdf8;
@@ -12,8 +15,14 @@
   --village: #3f7d4e;
   --werewolves: #9b2c2c;
   --neutral: #6b5b95;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  line-height: 1.45;
+  /* Kräftige Umrisse und harte Schatten im Retro-Stil. */
+  --line: #22201c;
+  --shadow: rgba(34, 32, 28, 0.35);
+  font-family: 'Pixelify Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.35;
+  /* Die Ligaturen der Pixelschrift (fi, fl) sind schlecht lesbar. */
+  font-variant-ligatures: none;
 }
 
 body[data-theme='night'] {
@@ -25,6 +34,8 @@ body[data-theme='night'] {
   --accent: #c9a227;
   --accent-text: #15120a;
   --chip: #26304f;
+  --line: #05070d;
+  --shadow: rgba(0, 0, 0, 0.55);
 }
 
 body[data-theme='gameOver'] {
@@ -36,6 +47,8 @@ body[data-theme='gameOver'] {
   --accent: #c9a227;
   --accent-text: #15120a;
   --chip: #3a3352;
+  --line: #0b0910;
+  --shadow: rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -48,6 +61,13 @@ body {
   color: var(--text);
   background: var(--bg);
   transition: background-color 0.4s;
+  /* Pixelschrift ohne Kantenglättung, wo der Browser das erlaubt (macOS). */
+  -webkit-font-smoothing: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Hintergrundbild als feste Ebene: background-attachment: fixed mit cover funktioniert auf iOS nicht. */
@@ -82,8 +102,10 @@ body::before {
 
 .logo-text {
   font-weight: 700;
-  font-size: 1.3rem;
-  letter-spacing: 0.04em;
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 var(--shadow);
 }
 
 /* Pixelgrafik: ganzzahlig vergrößern (Logo 24 px hoch -> 2x), nie weichzeichnen. */
@@ -103,10 +125,10 @@ body::before {
 
 .panel {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 2px solid var(--line);
+  box-shadow: 4px 4px 0 var(--shadow);
   padding: 18px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .panel h2 {
@@ -115,7 +137,7 @@ body::before {
 }
 
 .actor {
-  border-top: 1px solid var(--border);
+  border-top: 2px dashed var(--border);
   padding-top: 12px;
   margin-top: 12px;
 }
@@ -136,57 +158,74 @@ body::before {
   justify-content: flex-end;
 }
 
+/* Knöpfe wie in alten Spielen: Umriss, harter Schatten, beim Drücken eingedrückt. */
 button {
   font: inherit;
   min-height: 44px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--accent);
+  padding: 8px 16px;
+  border: 2px solid var(--line);
   background: var(--accent);
   color: var(--accent-text);
+  box-shadow: 3px 3px 0 var(--line);
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--line);
 }
 
 button.secondary,
 button.choice {
-  background: transparent;
+  background: var(--surface);
   color: var(--text);
-  border-color: var(--border);
 }
 
 button.choice.selected,
 button.selected {
   background: var(--accent);
   color: var(--accent-text);
-  border-color: var(--accent);
 }
 
 button.small {
   min-height: 32px;
-  padding: 4px 10px;
+  padding: 3px 10px;
   font-size: 0.875rem;
+  box-shadow: 2px 2px 0 var(--line);
 }
 
 button.danger {
-  background: transparent;
+  background: var(--surface);
   color: var(--danger);
   border-color: var(--danger);
+  box-shadow: 3px 3px 0 var(--danger);
 }
 
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 input,
 select {
   font: inherit;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
+  padding: 7px 10px;
+  border-radius: 0;
+  border: 2px solid var(--line);
+  box-shadow: inset 2px 2px 0 var(--shadow);
   background: var(--surface);
   color: var(--text);
   min-width: 0;
+}
+
+input[type='checkbox'] {
+  accent-color: var(--accent);
+  box-shadow: none;
 }
 
 .choice-grid,
@@ -262,7 +301,8 @@ select {
 .message {
   margin-top: 12px;
   padding: 10px 14px;
-  border-radius: 10px;
+  border: 2px solid #7a1c1c;
+  box-shadow: 3px 3px 0 var(--shadow);
   background: #fde8e8;
   color: #7a1c1c;
 }
@@ -293,13 +333,12 @@ select {
   padding: 0;
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 }
 
 .player {
   padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 2px solid var(--border);
 }
 
 .player.dead .player-name {
@@ -310,8 +349,8 @@ select {
 .tag {
   display: inline-block;
   font-size: 0.75rem;
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
   background: var(--chip);
   margin-left: 6px;
 }
@@ -326,6 +365,7 @@ select {
   display: flex;
   flex-direction: column;
   border: 4px solid var(--card-color);
+  box-shadow: 4px 4px 0 var(--shadow);
   overflow: hidden;
   background: var(--surface);
   margin: 8px auto;
@@ -339,6 +379,7 @@ select {
 .card-small {
   width: 100px;
   border-width: 2px;
+  box-shadow: 2px 2px 0 var(--shadow);
   margin: 4px auto;
 }
 
@@ -391,7 +432,7 @@ select {
 .card-name {
   text-align: center;
   padding: 4px;
-  font-weight: 600;
+  font-weight: 700;
   background: var(--card-color);
   color: #fff;
   font-size: 0.9rem;
@@ -420,11 +461,10 @@ select {
   align-items: center;
   text-align: center;
   padding: 6px;
-  border-radius: 10px;
 }
 
 .final.winner {
-  outline: 2px solid var(--accent);
+  outline: 2px dashed var(--accent);
 }
 
 .log ol {
@@ -438,7 +478,7 @@ select {
 
 .event {
   padding: 4px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 2px dotted var(--border);
 }
 
 .event-debug {
