@@ -1,9 +1,11 @@
 /**
  * Zentrale Stelle für alle Grafiken und Töne (aktuell nur Platzhalter).
  * Die vollständige Liste mit Dateinamen und Formaten steht in docs/assets.md.
+ * Grafiken sind Pixelgrafik: PNG in Originalgröße, die Oberfläche vergrößert ganzzahlig
+ * und ohne Weichzeichnen.
  *
  * Dateien in public/assets/ ablegen und hier eintragen, Pfade relativ zu public/:
- *   cards: { werewolf: 'assets/cards/werewolf.webp' }
+ *   cards: { werewolf: 'assets/cards/werewolf.png' }
  * Fehlt ein Eintrag (auch bei neuen Rollen), zeichnet die Oberfläche einen Platzhalter
  * bzw. spielt keinen Ton.
  */
@@ -15,6 +17,8 @@ export interface AssetConfig {
   cards: Partial<Record<string, string>>;
   cardBack: string | null;
   backgrounds: Record<'setup' | 'night' | 'day' | 'gameOver', string | null>;
+  /** Optional: Hochformat-Varianten für Handys; ohne Eintrag wird das Querformat beschnitten. */
+  backgroundsPortrait: Partial<Record<'setup' | 'night' | 'day' | 'gameOver', string>>;
   logo: string | null;
   /** Avatare je Persona-ID der Bots (siehe src/bots/personas.ts) und 'human' für Menschen. */
   avatars: Partial<Record<string, string>>;
@@ -26,6 +30,7 @@ export const ASSETS: AssetConfig = {
   cards: {},
   cardBack: null,
   backgrounds: { setup: null, night: null, day: null, gameOver: null },
+  backgroundsPortrait: {},
   logo: null,
   avatars: {},
   icons: {},

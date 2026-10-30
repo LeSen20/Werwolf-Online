@@ -69,10 +69,13 @@ export class App {
   private message: string | null = null;
   private logMode: 'off' | 'public' | 'debug' = 'off';
   private timer: { key: string; endsAt: number; handle: number } | null = null;
+  private theme: Theme = 'setup';
+  private readonly imageSizes = new Map<string, { width: number; height: number }>();
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.setup = new SetupScreen(this.registry, (request) => this.startGame(request), () => this.render());
+    window.addEventListener('resize', () => this.applyBackground());
   }
 
   // ---------------------------------------------------------------- Ablauf
@@ -312,12 +315,9 @@ export class App {
     const chatFocused = active instanceof HTMLInputElement && active.id === 'chat-input';
     const caret = chatFocused ? active.selectionStart : null;
     const view = this.game?.publicView() ?? null;
-    const theme = this.themeFor(view);
-    document.body.dataset.theme = theme;
-    const background = ASSETS.backgrounds[theme];
-    // Absoluter Pfad: Relative URLs in CSS-Variablen würden gegen die CSS-Datei aufgelöst.
-    const backgroundUrl = background ? new URL(assetUrl(background), document.baseURI).href : null;
-    document.body.style.setProperty('--bg-image', backgroundUrl ? `url("${backgroundUrl}")` : 'none');
+    this.theme = this.themeFor(view);
+    document.body.dataset.theme = this.theme;
+    this.applyBackground();
     this.root.replaceChildren(
       h(
         'div',
@@ -399,6 +399,34 @@ export class App {
           )
         : h('p', { class: 'hint' }, 'Nur lebende Spieler dürfen schreiben.'),
     ]);
+  }
+
+  /**
+   * Hintergrund (Pixelgrafik) in ganzzahliger Vergrößerung, die das Fenster gerade abdeckt:
+   * so bleiben alle Pixel gleich groß. Im Hochformat wird die Hochformat-Variante bevorzugt.
+   */
+  private applyBackground(): void {
+    const portrait = window.innerHeight > window.innerWidth;
+    const path = (portrait ? ASSETS.backgroundsPortrait[this.theme] : undefined) ?? ASSETS.backgrounds[this.theme];
+    // Absoluter Pfad: Relative URLs in CSS-Variablen würden gegen die CSS-Datei aufgelöst.
+    const url = path ? new URL(assetUrl(path), document.baseURI).href : null;
+    const style = document.body.style;
+    style.setProperty('--bg-image', url ? `url("${url}")` : 'none');
+    const size = url ? this.imageSizes.get(url) : undefined;
+    if (url && !size) {
+      const image = new Image();
+      image.onload = () => {
+        this.imageSizes.set(url, { width: image.naturalWidth, height: image.naturalHeight });
+        this.applyBackground();
+      };
+      image.src = url;
+    }
+    if (!size) {
+      style.removeProperty('--bg-size');
+      return;
+    }
+    const scale = Math.max(1, Math.ceil(Math.max(window.innerWidth / size.width, window.innerHeight / size.height)));
+    style.setProperty('--bg-size', `${size.width * scale}px ${size.height * scale}px`);
   }
 
   private themeFor(view: PublicView | null): Theme {

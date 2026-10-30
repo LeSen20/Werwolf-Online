@@ -20,7 +20,9 @@ export function roleCard(role: RoleInfo | null, size: 'small' | 'large' = 'large
     return h(
       'div',
       { class: `card card-${size} card-back` },
-      ASSETS.cardBack ? h('img', { src: assetUrl(ASSETS.cardBack), alt: 'Kartenrückseite' }) : h('span', { class: 'placeholder-label' }, 'Rückseite'),
+      ASSETS.cardBack
+        ? h('img', { src: assetUrl(ASSETS.cardBack), alt: 'Kartenrückseite' })
+        : h('div', { class: 'card-placeholder' }, h('span', { class: 'placeholder-label' }, 'Rückseite')),
     );
   }
   const image = ASSETS.cards[role.id];

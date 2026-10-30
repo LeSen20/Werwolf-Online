@@ -1,111 +1,105 @@
-# Asset-Liste
+# Grafikliste (Pixelgrafik, Retro-Stil)
 
-36 Dateien, alle optional: Fehlt eine Datei, zeigt die Oberfläche einen Platzhalter bzw. spielt keinen Ton. Empfohlene Reihenfolge: Karten, Hintergründe, Avatare, Logo, Symbole, Töne.
+30 Grafiken, dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
 
-Einbau: Datei unter dem angegebenen Namen nach `public/assets/` legen und den Pfad in `src/ui/assets.ts` eintragen (oder mir die Dateien schicken):
+Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
-```ts
-export const ASSETS: AssetConfig = {
-  cards: { werewolf: 'assets/cards/werewolf.webp', seer: 'assets/cards/seer.webp' },
-  cardBack: 'assets/cards/back.webp',
-  backgrounds: { setup: 'assets/backgrounds/setup.webp', night: null, day: null, gameOver: null },
-  // ...
-};
-```
+## Regeln für alle Grafiken
 
-Allgemein:
-
-- Bilder als WebP (PNG geht auch), Logo und Symbole am besten als SVG, Töne als MP3. Alle Formate laufen in aktuellen Browsern.
-- Dateinamen klein und ohne Leerzeichen, genau wie unten.
-- Kein Text in Bildern (außer im Logo). Namen und Beschriftungen zeichnet die Oberfläche, so bleiben die Bilder sprachunabhängig.
+- **Originalgröße:** Jede Grafik in der unten genannten Größe (1x) als PNG speichern, nicht selbst vergrößern. Das Spiel vergrößert immer um ganze Faktoren (2x, 3x, 4x ...) und ohne Weichzeichnen, so bleiben alle Pixel gleich groß und scharf.
+- **Harte Kanten:** Keine Kantenglättung, keine weichen Pinsel, keine Verläufe aus Halbtransparenz. Transparenz nur ganz oder gar nicht.
+- **Eine Palette:** Eine feste Farbpalette für alle Grafiken verwenden, z.B. PICO-8 oder Sweetie 16 (je 16 Farben) oder Endesga 32 (32 Farben), zu finden in der Palettenliste auf lospec.com. Das sorgt für den einheitlichen Retro-Look.
+- **Kein Text in Bildern** (außer im Logo): Namen und Beschriftungen zeichnet das Spiel, so bleiben die Grafiken sprachunabhängig.
+- **Werkzeuge:** Aseprite (kostenpflichtig) oder kostenlos LibreSprite, Pixelorama, Piskel (im Browser).
+- **Dateinamen:** klein und ohne Leerzeichen, genau wie unten. Ablage in `public/assets/`, Eintrag in `src/ui/assets.ts` (oder mir schicken).
 
 ## 1. Rollenkarten (8)
 
-| Datei | Schlüssel | Rolle | Rahmenfarbe |
-| --- | --- | --- | --- |
-| `cards/werewolf.webp` | `cards.werewolf` | Werwolf | rot (Werwölfe) |
-| `cards/villager.webp` | `cards.villager` | Dorfbewohner | grün (Dorf) |
-| `cards/seer.webp` | `cards.seer` | Seherin | grün |
-| `cards/witch.webp` | `cards.witch` | Hexe | grün |
-| `cards/hunter.webp` | `cards.hunter` | Jäger | grün |
-| `cards/cupid.webp` | `cards.cupid` | Amor | grün |
-| `cards/thief.webp` | `cards.thief` | Dieb | grün |
-| `cards/back.webp` | `cardBack` | Rückseite | neutral |
-
-- Hochformat 2:3, 750 x 1125 px (mindestens 500 x 750).
-- Angezeigt 200 px breit (Rolle ansehen) und 84 px breit (Übersicht am Spielende). Das Motiv muss auch klein erkennbar sein.
-- Ohne Rahmen und ohne Namen: Die Oberfläche zeichnet einen Rahmen in Fraktionsfarbe und unten einen Namensbalken. Dafür wird das Bild oben und unten um je etwa 5 % (groß) bis 10 % (klein) beschnitten, also keine wichtigen Details an diese Ränder.
-- Die Rückseite wird ohne Namensbalken vollständig gezeigt.
-- Neue Rollen brauchen später je eine weitere Karte mit ihrer Rollen-ID als Namen.
-
-## 2. Hintergründe (4)
-
-| Datei | Schlüssel | Wann | Helligkeit |
-| --- | --- | --- | --- |
-| `backgrounds/setup.webp` | `backgrounds.setup` | Vorbereitung | hell |
-| `backgrounds/night.webp` | `backgrounds.night` | Rollen ansehen, Nacht | dunkel |
-| `backgrounds/day.webp` | `backgrounds.day` | Tag, Diskussion, Abstimmung | hell |
-| `backgrounds/game-over.webp` | `backgrounds.gameOver` | Spielende | dunkel |
-
-- 1920 x 1080 px, höchstens etwa 400 KB je Datei.
-- Das Bild füllt immer das ganze Fenster und wird dafür beschnitten. Auf einem Handy im Hochformat (z.B. 390 x 844) bleibt nur etwa das mittlere Viertel der Bildbreite sichtbar: Hauptmotiv in die Mitte. Hochformat-Varianten kann ich bei Bedarf zusätzlich einbauen.
-- Ruhig und kontrastarm. Spielinhalte liegen auf eigenen Flächen, aber Logo und Phasenanzeige stehen direkt auf dem Bild. Ihre Schrift ist bei hellen Phasen dunkel und bei dunklen Phasen hell, deshalb die Helligkeit aus der Tabelle einhalten.
-
-## 3. Logo (1)
-
-| Datei | Schlüssel | Wo |
+| Datei | Rolle | Rahmen (zeichnet das Spiel) |
 | --- | --- | --- |
-| `logo.svg` (oder `logo.png`) | `logo` | Kopfzeile, in allen Phasen |
+| `cards/werewolf.png` | Werwolf | rot |
+| `cards/villager.png` | Dorfbewohner | grün |
+| `cards/seer.png` | Seherin | grün |
+| `cards/witch.png` | Hexe | grün |
+| `cards/hunter.png` | Jäger | grün |
+| `cards/cupid.png` | Amor | grün |
+| `cards/thief.png` | Dieb | grün |
+| `cards/back.png` | Rückseite | neutral |
 
-- Wird 36 px hoch angezeigt, Breite frei (Querformat, etwa 3:1 bis 5:1). Als PNG mindestens 108 px hoch, transparenter Hintergrund.
-- Muss auf hellem und dunklem Hintergrund lesbar sein, z.B. durch eine Kontur.
+- **48 x 72 Pixel** (Hochformat 2:3). Angezeigt 4x (192 x 288) beim Rolle-Ansehen und 2x (96 x 144) in der Endübersicht. Für mehr Details geht auch 96 x 144 (dann 2x und 1x).
+- Motiv bis an den Rand, ohne eigenen Rahmen und ohne Namen: Das Spiel zeichnet einen Rahmen in Fraktionsfarbe und darunter den Rollennamen. Kein transparenter Hintergrund.
+- Die Rückseite ist für alle Karten gleich und darf keine Rolle verraten.
+- Neue Rollen brauchen später je eine Karte mit ihrer Rollen-ID als Dateiname.
 
-## 4. Avatare (13)
+## 2. Hintergründe (4, dazu 4 optional)
+
+| Datei | Wann | Helligkeit |
+| --- | --- | --- |
+| `backgrounds/setup.png` | Vorbereitung | hell |
+| `backgrounds/night.png` | Rollen ansehen, Nacht | dunkel |
+| `backgrounds/day.png` | Tag, Diskussion, Abstimmung | hell |
+| `backgrounds/game-over.png` | Spielende | dunkel |
+
+- **320 x 180 Pixel** (Querformat 16:9). Das Spiel vergrößert so weit, dass das Fenster bedeckt ist, z.B. 6x bei 1920 x 1080, und schneidet den Rest ab.
+- **Optional, für Handys empfohlen:** dieselben vier Bilder zusätzlich im Hochformat, **180 x 320 Pixel**, als `backgrounds/setup-portrait.png` usw. (Eintrag unter `backgroundsPortrait`). Ohne sie sieht man auf einem Handy im Hochformat nur die mittleren etwa 80 Pixel des Querformats.
+- Ruhig und kontrastarm, weil Logo und Phasenanzeige direkt darauf stehen. Deren Schrift ist in hellen Phasen dunkel und in dunklen Phasen hell, deshalb die Helligkeit aus der Tabelle einhalten.
+
+## 3. Avatare (13)
 
 | Datei | Persönlichkeit | Charakter (für die Gestaltung) |
 | --- | --- | --- |
-| `avatars/greta.webp` | Greta | direkt und selbstbewusst |
-| `avatars/jonas.webp` | Jonas | ruhig und analytisch |
-| `avatars/mila.webp` | Mila | freundlich, neugierig |
-| `avatars/theo.webp` | Theo | nervös |
-| `avatars/lina.webp` | Lina | locker und humorvoll |
-| `avatars/felix.webp` | Felix | misstrauisch |
-| `avatars/paula.webp` | Paula | vorsichtig, zurückhaltend |
-| `avatars/noah.webp` | Noah | ungeduldig |
-| `avatars/emma.webp` | Emma | empathisch |
-| `avatars/leon.webp` | Leon | trocken und wortkarg |
-| `avatars/sofia.webp` | Sofia | dramatisch und emotional |
-| `avatars/max.webp` | Max | logisch, faktenorientiert |
-| `avatars/human.webp` | Menschen | neutral, z.B. Silhouette, für alle menschlichen Spieler |
+| `avatars/greta.png` | Greta | direkt und selbstbewusst |
+| `avatars/jonas.png` | Jonas | ruhig und analytisch |
+| `avatars/mila.png` | Mila | freundlich, neugierig |
+| `avatars/theo.png` | Theo | nervös |
+| `avatars/lina.png` | Lina | locker und humorvoll |
+| `avatars/felix.png` | Felix | misstrauisch |
+| `avatars/paula.png` | Paula | vorsichtig, zurückhaltend |
+| `avatars/noah.png` | Noah | ungeduldig |
+| `avatars/emma.png` | Emma | empathisch |
+| `avatars/leon.png` | Leon | trocken und wortkarg |
+| `avatars/sofia.png` | Sofia | dramatisch und emotional |
+| `avatars/max.png` | Max | logisch, faktenorientiert |
+| `avatars/human.png` | Menschen | neutral, für alle menschlichen Spieler |
 
-- Quadratisch, 256 x 256 px. Im Chat als Kreis mit 34 px Durchmesser angezeigt, die Ecken fallen weg: Gesicht mittig mit etwas Rand.
-- Die Avatare dürfen keine Rolle andeuten (nichts Wölfisches), denn jeder Bot kann jede Rolle bekommen.
-- Die Avatare gehören zu Persönlichkeiten, nicht zu Namen: Bots bekommen jede Partie einen neuen Benutzernamen (z.B. `nachteule7`) und zufällig eine Persönlichkeit samt Avatar. Die Namen in der Tabelle dienen nur der Zuordnung. Ein Avatar sollte deshalb zu jedem Benutzernamen passen, also eher eine Figur als ein Porträt mit Namensbezug sein.
+- **16 x 16 Pixel** (angezeigt 2x, also 32 x 32 neben jeder Chatnachricht). Mehr Details: 32 x 32 (dann 1x).
+- Quadratisch, Gesicht oder Figur mittig. Transparenter Hintergrund ist erlaubt.
+- Avatare gehören zur Persönlichkeit, nicht zum Namen: Bots bekommen jede Partie einen neuen Benutzernamen und zufällig eine Persönlichkeit samt Avatar. Kein Avatar darf eine Rolle andeuten (nichts Wölfisches).
 
-## 5. Symbole (4)
+## 4. Symbole (4)
 
-| Datei | Schlüssel | Bedeutung | Sichtbar für |
-| --- | --- | --- | --- |
-| `icons/dead.svg` | `icons.dead` | tot | alle |
-| `icons/lover.svg` | `icons.lover` | verliebt | das Paar und Amor |
-| `icons/pack.svg` | `icons.pack` | Rudelmitglied | nur Werwölfe |
-| `icons/bot.svg` | `icons.bot` | Bot | alle, in der Endübersicht |
+| Datei | Bedeutung | Sichtbar für |
+| --- | --- | --- |
+| `icons/dead.png` | tot | alle |
+| `icons/lover.png` | verliebt | das Paar und Amor |
+| `icons/pack.png` | Rudelmitglied | nur Werwölfe |
+| `icons/bot.png` | Bot | alle, in der Endübersicht |
 
-- SVG mit quadratischer viewBox (z.B. 24 x 24) oder PNG 48 x 48, transparenter Hintergrund. Angezeigt 16 px groß neben dem Namen.
-- Feste Farbe wählen, die auf hellem und dunklem Hintergrund funktioniert: Als Bild eingebundene SVGs übernehmen die Schriftfarbe nicht (`currentColor` wirkt hier nicht).
+- **8 x 8 Pixel** (angezeigt 2x, 16 x 16 neben dem Namen). Mehr Details: 16 x 16 (dann 1x).
+- Transparenter Hintergrund, eine kräftige Farbe mit dunklem Umriss, damit das Symbol auf hellen und dunklen Flächen lesbar ist.
+
+## 5. Logo (1)
+
+| Datei | Wo |
+| --- | --- |
+| `logo.png` | Kopfzeile, in allen Phasen |
+
+- **24 Pixel hoch**, Breite frei bis etwa 120 Pixel (z.B. 96 x 24). Angezeigt 2x (48 Pixel hoch).
+- Transparenter Hintergrund und eine Kontur, damit es auf hellen und dunklen Hintergründen lesbar ist.
 
 ## 6. Töne (6)
 
-| Datei | Schlüssel | Wann |
-| --- | --- | --- |
-| `sounds/day-start.mp3` | `sounds.dayStart` | Tag beginnt |
-| `sounds/death.mp3` | `sounds.death` | jemand stirbt |
-| `sounds/vote.mp3` | `sounds.vote` | Abstimmung beginnt |
-| `sounds/night-start.mp3` | `sounds.nightStart` | Nacht beginnt |
-| `sounds/game-over.mp3` | `sounds.gameOver` | Spielende |
-| `sounds/chat.mp3` | `sounds.chat` | neue Chatnachricht |
+| Datei | Wann |
+| --- | --- |
+| `sounds/day-start.mp3` | Tag beginnt |
+| `sounds/death.mp3` | jemand stirbt |
+| `sounds/vote.mp3` | Abstimmung beginnt |
+| `sounds/night-start.mp3` | Nacht beginnt |
+| `sounds/game-over.mp3` | Spielende |
+| `sounds/chat.mp3` | neue Chatnachricht |
 
-- MP3, je höchstens etwa 3 s und 100 KB, ohne Stille am Anfang, alle ungefähr gleich laut.
-- Fallen mehrere Ereignisse zusammen, spielen die Töne in der Reihenfolge der Tabelle im Abstand von 1,5 s (z.B. Tag beginnt, dann Tod).
-- `chat.mp3` sehr kurz und leise (unter 0,5 s): Die Bots schreiben viel, der Ton kommt bei jeder Nachricht.
+- Passend zum Retro-Stil als Chiptune-Effekte, z.B. mit den kostenlosen Werkzeugen jsfxr oder ChipTone.
+- MP3, je höchstens etwa 3 s, ohne Stille am Anfang, alle ungefähr gleich laut.
+- `chat.mp3` sehr kurz und leise (unter 0,5 s), denn die Bots schreiben viel.
+- Fallen mehrere Ereignisse zusammen, spielen die Töne in der Reihenfolge der Tabelle im Abstand von 1,5 s.
 - Browser spielen Töne erst nach der ersten Interaktion mit der Seite ab. Auf iPhones ist die Tonausgabe noch nicht getestet.
