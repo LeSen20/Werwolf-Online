@@ -1,6 +1,6 @@
 export { Game, type GameOptions, type LogEntry } from './game';
 export { Registry } from './registry';
-export { EngineContext } from './context';
+export { EngineContext, MARK_FACTION, MARK_NO_VOTE, MARK_SILENCED, MARK_TAGS, MARK_TEAM } from './context';
 export { GameError, ConfigError, type ErrorCode } from './errors';
 export {
   DEFAULT_RULES,

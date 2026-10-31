@@ -10,7 +10,7 @@
  * folgt die Siegprüfung. So wird nie mitten in einer Todeskette ausgewertet.
  */
 import { candidatesOf, usesLeft } from './actions';
-import type { EngineContext } from './context';
+import { MARK_SILENCED, type EngineContext } from './context';
 import { GameError } from './errors';
 import { FACTION_LABELS } from './labels';
 import type { DeathInfo, PlayerState } from './types';
@@ -59,8 +59,10 @@ export function processDeathQueue(ctx: EngineContext): 'done' | 'waiting' {
 
     for (const rule of ctx.registry.rules) rule.onDeath?.(ctx, player, death);
 
-    for (const ability of ctx.role(player).abilities ?? []) {
+    for (const ability of [...(ctx.role(player).abilities ?? []), ...ctx.registry.ruleAbilities()]) {
       if (ability.trigger !== 'death' || usesLeft(ability, player) === 0) continue;
+      if (player.marks[MARK_SILENCED] === true) continue;
+      if (ctx.registry.isRuleAbility(ability.id) && !ability.shouldTrigger) continue;
       if (ability.shouldTrigger && !ability.shouldTrigger(ctx, player, death)) continue;
       deaths.pending.push({ abilityId: ability.id, playerId: player.id });
       ctx.debug(`Todesfähigkeit ausgelöst: ${ability.name} (${player.name})`);

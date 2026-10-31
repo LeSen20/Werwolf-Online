@@ -161,6 +161,20 @@ export interface RuleModule {
   teamModifier?(ctx: EngineContext, player: PlayerState, team: TeamId): TeamId;
   /** Was ein Spieler über andere weiß (z.B. Werwölfe kennen sich). */
   knowledge?(ctx: EngineContext, viewer: PlayerState): KnownInfo[];
+  /** Fähigkeiten, die an keine Rolle gebunden sind (z.B. Nachfolger des Hauptmanns, trigger 'death'). */
+  abilities?: AbilityDefinition[];
+  /** In NIGHT_RESOLUTION nach allen Fähigkeiten, bevor Angriffe verrechnet werden (Schutz, Zusatzangriffe). */
+  onNightResolution?(ctx: EngineContext, night: NightResolution): void;
+  /** Zu Tagesbeginn nach der Bekanntgabe der Toten (z.B. Bär brummt). */
+  onDayStart?(ctx: EngineContext): void;
+  /** Darf ein Spieler abstimmen? false schließt ihn von der Abstimmung aus. */
+  canVote?(ctx: EngineContext, player: PlayerState): boolean;
+  /** Gewicht einer Stimme (Standard 1, z.B. Hauptmann 2). */
+  voteWeight?(ctx: EngineContext, voter: PlayerState): number;
+  /** Gleichstand: einen Spieler bestimmen, der stattdessen ausscheidet (z.B. Sündenbock), sonst null. */
+  onVoteTie?(ctx: EngineContext, leaders: PlayerId[]): PlayerId | null;
+  /** Vom Dorf verbannt: true verhindert den Tod (z.B. Dorfdepp). */
+  preventVoteElimination?(ctx: EngineContext, player: PlayerState): boolean;
 }
 
 export const defineRole = (role: RoleDefinition): RoleDefinition => role;

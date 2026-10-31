@@ -2,7 +2,7 @@
  * Voting System: Tagesabstimmung mit geheimer Stimmabgabe, Enthaltungen,
  * optionaler Stimmänderung und konfigurierbarer Gleichstandsregel.
  */
-import type { EngineContext } from './context';
+import { MARK_NO_VOTE, type EngineContext } from './context';
 import { GameError } from './errors';
 import type { PlayerId, VoteCommand, VoteState } from './types';
 
@@ -19,7 +19,11 @@ function requireVote(ctx: EngineContext): VoteState {
 const names = (ctx: EngineContext, ids: PlayerId[]) => ids.map((id) => ctx.name(id)).join(', ');
 
 export function startVote(ctx: EngineContext, candidates: PlayerId[], round: number): void {
-  ctx.state.vote = { round, candidates: [...candidates], voters: ctx.alivePlayers().map((p) => p.id), ballots: {} };
+  const voters = ctx
+    .alivePlayers()
+    .filter((p) => p.marks[MARK_NO_VOTE] !== true && ctx.registry.rules.every((rule) => rule.canVote?.(ctx, p) ?? true))
+    .map((p) => p.id);
+  ctx.state.vote = { round, candidates: [...candidates], voters, ballots: {} };
   ctx.publicEvent(
     'vote-start',
     round === 1 ? 'Die Abstimmung beginnt. Jeder lebende Spieler hat eine Stimme.' : `Stichwahl zwischen ${names(ctx, candidates)}.`,
@@ -70,6 +74,12 @@ export function closeVote(ctx: EngineContext): void {
   if (missing.length > 0) ctx.debug(`Abstimmung geschlossen, ohne Stimme: ${names(ctx, missing)}`);
 }
 
+/** Gewicht einer Stimme laut Regelmodulen (z.B. Hauptmann zählt doppelt). */
+export function voteWeight(ctx: EngineContext, voterId: PlayerId): number {
+  const voter = ctx.player(voterId);
+  return ctx.registry.rules.reduce((weight, rule) => weight * (rule.voteWeight?.(ctx, voter) ?? 1), 1);
+}
+
 export function resolveVote(ctx: EngineContext): VoteOutcome {
   const vote = requireVote(ctx);
   const counts = new Map<PlayerId, number>();
@@ -77,7 +87,7 @@ export function resolveVote(ctx: EngineContext): VoteOutcome {
   for (const voterId of vote.voters) {
     const ballot = vote.ballots[voterId];
     if (ballot === undefined || ballot === null) abstentions += 1;
-    else counts.set(ballot, (counts.get(ballot) ?? 0) + 1);
+    else counts.set(ballot, (counts.get(ballot) ?? 0) + voteWeight(ctx, voterId));
   }
 
   const tally = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -104,6 +114,10 @@ export function resolveVote(ctx: EngineContext): VoteOutcome {
     return { kind: 'eliminate', playerId: leaders[0] };
   }
 
+  for (const module of ctx.registry.rules) {
+    const chosen = module.onVoteTie?.(ctx, leaders);
+    if (chosen) return { kind: 'eliminate', playerId: chosen };
+  }
   const rule = vote.round === 1 ? ctx.rules.tieBreak : ctx.rules.runoffTieBreak;
   if (rule === 'runoff') {
     ctx.publicEvent('vote-tie', `Gleichstand zwischen ${names(ctx, leaders)}. Es folgt eine Stichwahl.`, { leaders });

@@ -26,7 +26,7 @@ const investigate: AbilityDefinition = {
     const target = ctx.player(input.targets[0]);
     const role = ctx.role(target);
     const options = ctx.options<SeerOptions>('seer');
-    const apparent = role.appearsAs?.(ctx, target) ?? role.faction;
+    const apparent = ctx.apparentFaction(target);
     const text =
       options.result === 'role'
         ? `${target.name} ist: ${role.name}.`

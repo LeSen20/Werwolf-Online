@@ -145,6 +145,7 @@ export function resolveNight(ctx: EngineContext): void {
     .filter((entry) => !entry.action.skipped)
     .sort((a, b) => (a.ability.priority ?? DEFAULT_PRIORITY) - (b.ability.priority ?? DEFAULT_PRIORITY) || a.index - b.index);
   for (const { action, ability } of ordered) ability.resolve?.(ctx, action, resolution);
+  for (const rule of ctx.registry.rules) rule.onNightResolution?.(ctx, resolution);
 
   for (const attack of resolution.attacks) {
     const protection = resolution.protectionFor(attack);

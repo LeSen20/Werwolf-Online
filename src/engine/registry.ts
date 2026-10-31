@@ -18,6 +18,7 @@ export class Registry {
   private readonly teams = new Map<TeamId, TeamDefinition>();
   private readonly ruleModules: RuleModule[] = [];
   private readonly causeLabels = new Map<DeathCause, string>();
+  private readonly ruleAbilityIds = new Set<AbilityId>();
 
   constructor(options: { withCoreRules?: boolean } = {}) {
     if (options.withCoreRules !== false) this.registerRule(CORE_RULES);
@@ -46,6 +47,10 @@ export class Registry {
       this.teams.set(team.id, team);
     }
     this.addCauseLabels(rule.deathCauses);
+    for (const ability of rule.abilities ?? []) {
+      this.registerAbility(ability, rule.id);
+      this.ruleAbilityIds.add(ability.id);
+    }
     this.ruleModules.push(rule);
     return this;
   }
@@ -96,6 +101,15 @@ export class Registry {
 
   nightAbilities(): AbilityDefinition[] {
     return [...this.abilities.values()].filter((a) => a.trigger === 'night');
+  }
+
+  /** Fähigkeit eines Regelmoduls (nicht an eine Rolle gebunden). */
+  isRuleAbility(abilityId: AbilityId): boolean {
+    return this.ruleAbilityIds.has(abilityId);
+  }
+
+  ruleAbilities(): AbilityDefinition[] {
+    return [...this.ruleAbilityIds].map((id) => this.getAbility(id));
   }
 
   roleHasAbility(roleId: RoleId, abilityId: AbilityId): boolean {

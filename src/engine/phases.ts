@@ -80,6 +80,7 @@ function announceDay(ctx: EngineContext): void {
       : `Tag ${ctx.state.round}: Der Morgen graut. In dieser Nacht ist niemand gestorben.`,
     { deaths: dead.map((p) => p.id) },
   );
+  for (const rule of ctx.registry.rules) rule.onDayStart?.(ctx);
 }
 
 function finishGame(ctx: EngineContext, result: GameResult): void {
@@ -192,7 +193,11 @@ export function advance(ctx: EngineContext): void {
           transition(ctx, 'DAY_VOTING');
           return;
         }
-        if (outcome.kind === 'eliminate') ctx.kill(outcome.playerId, 'vote');
+        if (outcome.kind === 'eliminate') {
+          const player = ctx.player(outcome.playerId);
+          const spared = ctx.registry.rules.some((rule) => rule.preventVoteElimination?.(ctx, player));
+          if (!spared) ctx.kill(outcome.playerId, 'vote');
+        }
         state.continuation = 'NIGHT_START';
         transition(ctx, 'DEATH_RESOLUTION');
         break;

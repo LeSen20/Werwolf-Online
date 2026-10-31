@@ -2,7 +2,7 @@
  * Action Resolver: validiert und verarbeitet Entscheidungen zu Fähigkeiten
  * (Nachtfähigkeiten und Todesfähigkeiten) anhand ihrer Definitionen.
  */
-import type { EngineContext } from './context';
+import { MARK_SILENCED, type EngineContext } from './context';
 import type { AbilityDefinition, Choice } from './definitions';
 import { GameError } from './errors';
 import type { DecisionInput, PendingDecision, PlayerId, PlayerState, UseAbilityCommand } from './types';
@@ -43,6 +43,7 @@ function isInputFeasible(ctx: EngineContext, ability: AbilityDefinition, actor: 
 /** Ressourcen übrig, eigene Bedingung erfüllt und mindestens eine gültige Eingabe möglich. */
 export function isAbilityAvailable(ctx: EngineContext, ability: AbilityDefinition, actor: PlayerState): boolean {
   if (usesLeft(ability, actor) === 0) return false;
+  if (actor.marks[MARK_SILENCED] === true && !ability.group) return false;
   if (ability.isAvailable && !ability.isAvailable(ctx, actor)) return false;
   return isInputFeasible(ctx, ability, actor);
 }
@@ -115,7 +116,7 @@ function notPendingError(ctx: EngineContext, ability: AbilityDefinition, actor: 
   }
   const owns = ability.group
     ? ctx.hasTag(actor, ability.group.tag)
-    : ability.actors !== undefined || ctx.registry.roleHasAbility(actor.roleId, ability.id);
+    : ability.actors !== undefined || ctx.registry.roleHasAbility(actor.roleId, ability.id) || ctx.registry.isRuleAbility(ability.id);
   if (!owns) return new GameError('NOT_ALLOWED', `${actor.name} besitzt die Fähigkeit "${ability.name}" nicht.`);
   return new GameError('NOT_PENDING', `"${ability.name}" ist für ${actor.name} gerade nicht an der Reihe.`);
 }
