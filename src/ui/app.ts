@@ -9,7 +9,7 @@ import { Game, type Command, type DispatchResult, type GameEvent, type PendingDe
 import { createDefaultRegistry } from '../roles';
 import { basicTranslator, createTranslator, detectLanguage, type Translator } from '../translation';
 import { ASSETS, assetUrl, playSound, type SoundKey } from './assets';
-import { preloadCardAnimations } from './cardAnimation';
+import { setCardAnimationGroup } from './cardAnimation';
 import { chatLog, eventLog, icon, knowledge, panel, playerList, promptForm, roleCard, type Theme } from './components';
 import { button, h, type Child } from './dom';
 import { SetupScreen, type StartRequest } from './setup';
@@ -77,7 +77,6 @@ export class App {
     this.root = root;
     this.setup = new SetupScreen(this.registry, (request) => this.startGame(request), () => this.render());
     window.addEventListener('resize', () => this.applyBackground());
-    preloadCardAnimations();
   }
 
   // ---------------------------------------------------------------- Ablauf
@@ -96,6 +95,8 @@ export class App {
       return;
     }
     // Bots: Spieler-IDs sind p1..pN in der Reihenfolge der Vorbereitung.
+    // Kartenanimationen nur für die Rollen dieser Partie laden (und nur gemeinsam abspielen).
+    setCardAnimationGroup(this.game.publicView().deck.map((entry) => entry.roleId));
     this.translator = createTranslator(request.translation);
     // Persönlichkeiten (Sprechstil, Avatar) jede Partie neu verteilen.
     const personas = shuffled(Math.random, PERSONAS);

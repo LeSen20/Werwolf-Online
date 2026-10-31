@@ -17,18 +17,21 @@ Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
 | Datei | Rolle | Stand |
 | --- | --- | --- |
-| `cards/werewolf.png` | Werwolf | fertig, auch animiert |
-| `cards/villager.png` | Dorfbewohner | Platzhalter |
-| `cards/seer.png` | Seherin | Platzhalter |
-| `cards/witch.png` | Hexe | Platzhalter |
-| `cards/hunter.png` | Jäger | Platzhalter |
-| `cards/cupid.png` | Amor | Platzhalter |
-| `cards/thief.png` | Dieb | Platzhalter |
+| `cards/werewolf.png` | Werwolf | fertig, animiert |
+| `cards/villager.png` | Dorfbewohner | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/seer.png` | Seherin | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/witch.png` | Hexe | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/hunter.png` | Jäger | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/cupid.png` | Amor | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/thief.png` | Dieb | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/back.png` | Rückseite | Platzhalter |
+
+Die sechs Karten ohne Wolf sind mit dem Kartengenerator der Werwolf-Karte erzeugt (gleicher Rahmen, Titel und kurzer Kartentext je Rolle, Nachtszene ohne Wolf). Ein eigenes Motiv je Rolle ersetzt später nur das Bildfeld.
 
 - **Komplette Karte wie die Werwolf-Karte: 192 x 288 Pixel** (2:3) mit eigenem Rahmen, Titel und Beschreibung. Das Spiel zeichnet keinen zusätzlichen Rahmen. Die abgenutzte Außenkante darf transparent sein.
 - Angezeigt 1x auf Handys, 2x (384 x 576) auf großen Bildschirmen, als Vorschau in der Endübersicht verkleinert (0,5x) mit dem Rollennamen darunter.
-- **Animation (optional):** Sprite-Sheet mit JSON im Aseprite-Format wie `cards/werewolf-sheet.png` und `.json`: Clips als `frameTags`, Reihenfolge in `meta.playlist`, `meta.fps`. Beim Aufdecken läuft `howl` (falls vorhanden), danach die Playlist. Eintrag unter `cardAnimations`.
+- **Animation gilt nur gemeinsam:** Fehlt einer Rolle der Partie die Animation, zeigen alle Karten das Standbild, sonst würde Bewegung im Hot-Seat-Modus die Rolle verraten. Alle Karten beginnen gleich (kein Heulen beim Aufdecken) und laufen gleich lang (24 s).
+- **Animation (optional):** Sprite-Sheet mit JSON im Aseprite-Format wie `cards/werewolf-sheet.png` und `.json`: Clips als `frameTags`, Reihenfolge in `meta.playlist`, `meta.fps`. Die Playlist läuft in Schleife. Eintrag unter `cardAnimations`.
 - Die Rückseite ist für alle Karten gleich und darf keine Rolle verraten.
 - Neue Rollen brauchen später je eine Karte mit ihrer Rollen-ID als Dateiname.
 
