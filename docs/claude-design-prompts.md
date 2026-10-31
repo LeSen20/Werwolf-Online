@@ -62,9 +62,10 @@ Oberfläche und verbessere Hierarchie, Abstände und Lesbarkeit. Keine neuen Spi
 keine neuen Funktionen, keine Texte erfinden, die eine Regel anders beschreiben.
 
 Das Spiel ist Hot-Seat: Ein Gerät wird herumgereicht, Bots spielen mit.
-1. Vorbereitung: Spielerliste (Name, Bot ja/nein, entfernen), Sonderrollen gruppiert nach
-   Grundspiel, Neumond und Charaktere, Kartenstapel als Schilder, Regeln und Sprachen
-   aufklappbar, Startleiste unten fest mit Status und "Spiel starten".
+1. Vorbereitung in drei Reitern (Spieler, Rollen, Regeln): Spielart "Allein gegen Bots" oder
+   "Zusammen", Spielerliste (Name, Bot ja/nein, entfernen), Sonderrollen gruppiert nach
+   Grundspiel, Neumond und Charaktere, Kartenstapel als Schilder, Startleiste unten fest mit
+   Status und "Spiel starten".
 2. Gerät weitergeben: "Gib das Gerät an [Name]", Name groß, Kartenrückseite, Knopf "Ich bin [Name]".
 3. Rolle ansehen: große Rollenkarte, Beschreibung, "Das weißt du" (z.B. Mitwerwölfe),
    Knopf "Karte verdecken und weitergeben".

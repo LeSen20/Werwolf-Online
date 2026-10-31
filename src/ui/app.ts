@@ -10,7 +10,8 @@ import { createDefaultRegistry } from '../roles';
 import { basicTranslator, createTranslator, detectLanguage, type Translator } from '../translation';
 import { ASSETS, assetUrl, playSound, type SoundKey } from './assets';
 import { setCardAnimationGroup } from './cardAnimation';
-import { chatLog, clearPromptSelections, eventLog, handoff, icon, knowledge, panel, playerList, progress, promptForm, roleCard, tallyBars, whoAmI, type TallyRow, type Theme } from './components';
+import { chatLog, clearPromptSelections, emblem, eventLog, handoff, icon, knowledge, panel, playerList, progress, promptForm, roleCard, tallyBars, whoAmI, type TallyRow, type Theme } from './components';
+import { backdrop } from './pixel';
 import type { DecisionPrompt, PlayerView } from '../engine';
 import { button, h, type Child } from './dom';
 import { SetupScreen, type StartRequest } from './setup';
@@ -69,7 +70,20 @@ const RESULT_EVENTS = new Set([
   'hunter-shot',
   'hunter-skip',
   'game-over',
+  // Sonderregeln und Rollen, die das Ergebnis eines Abschnitts betreffen.
+  'vote-lot',
+  'captain-elected',
+  'captain-decides',
+  'captain-successor',
+  'elder-curse',
+  'idiot-revealed',
+  'scapegoat-tie',
+  'scapegoat-voters',
+  'second-vote',
 ]);
+
+/** Morgendliche Meldungen nach dem Tagesbeginn (z.B. der Bär brummt). */
+const MORNING_EVENTS = new Set(['bear-growl', 'bear-quiet', 'elder-curse', 'death', 'lover-grief', 'captain-successor']);
 
 export class App {
   private readonly root: HTMLElement;
@@ -103,6 +117,8 @@ export class App {
   /** Letztes Ereignis, das ein Spieler in seinem Nachtzug gesehen hat (für "Neu für dich"). */
   private readonly seenEvents = new Map<PlayerId, number>();
   private readonly imageSizes = new Map<string, { width: number; height: number }>();
+  /** Schlüssel des zuletzt gezeigten Bildschirms: nur ein neuer Bildschirm wird eingeblendet. */
+  private lastVisualKey = '';
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -328,7 +344,8 @@ export class App {
           return { tally, abstentions: Number(e.data?.abstentions ?? 0) };
         });
       const title = !beforeKey.startsWith('vote:') ? 'Todesfolgen' : before.vote?.kind === 'election' ? 'Wahlergebnis' : 'Ergebnis';
-      this.interstitial = { title, items, buttonLabel: 'Weiter' };
+      // Ohne Meldung keine leere Zwischenseite.
+      if (items.length > 0) this.interstitial = { title, items, buttonLabel: 'Weiter' };
     }
   }
 
@@ -399,20 +416,27 @@ export class App {
     const chatFocused = active instanceof HTMLInputElement && active.id === 'chat-input';
     const caret = chatFocused ? active.selectionStart : null;
     const view = this.game?.publicView() ?? null;
+    // Zuerst den Bildschirm: Er kann die Nachtrunde beenden, davon hängen Thema, Kopfzeile und Chat ab.
+    const screen = this.screen(view);
     this.theme = this.themeFor(view);
     document.body.dataset.theme = this.theme;
     this.applyBackground();
     const chat = view ? this.chatPanel(view) : null;
+    const visualKey = this.visualKey(view);
+    const entering = visualKey !== this.lastVisualKey;
+    this.lastVisualKey = visualKey;
     this.root.replaceChildren(
       h(
         'div',
         { class: chat ? 'app with-chat' : 'app' },
         this.header(view),
         this.message ? h('div', { class: 'message', role: 'alert' }, this.message) : null,
-        h('main', null, this.screen(view), chat),
+        h('main', null, screen, chat),
         this.logPanel(view),
       ),
     );
+    // Einblenden nur beim Wechsel, nicht bei jedem Neuzeichnen (Bots schreiben laufend).
+    if (entering) this.root.querySelector('main > :first-child')?.classList.add('enter');
     const log = this.root.querySelector('#chat-log');
     if (log) log.scrollTop = log.scrollHeight;
     if (chatFocused) {
@@ -423,6 +447,20 @@ export class App {
     this.syncTimer(view);
     this.scheduleBots(view);
     void this.bots?.observe();
+  }
+
+  private visualKey(view: PublicView | null): string {
+    const pass = this.nightPass;
+    return [
+      this.screenKey(view),
+      this.interstitial?.title ?? '',
+      this.revealIndex,
+      this.revealOpen,
+      pass ? `${pass.round}:${pass.pass}:${pass.index}:${pass.stage}` : '',
+      this.voterReady ?? '',
+      this.nightIntroRound,
+      this.awakeKey ?? '',
+    ].join('|');
   }
 
   /** Tages-Chat für Menschen; Bots schreiben über den BotController mit. */
@@ -438,6 +476,7 @@ export class App {
           id: e.id,
           speaker: view.players.find((p) => p.id === speakerId)?.name ?? '?',
           avatarKey: this.bots?.persona(speakerId)?.id ?? 'human',
+          mine: !this.isBot(speakerId),
           text: String(e.data?.message ?? ''),
         };
       });
@@ -496,9 +535,19 @@ export class App {
     // Absoluter Pfad: Relative URLs in CSS-Variablen würden gegen die CSS-Datei aufgelöst.
     const url = path ? new URL(assetUrl(path), document.baseURI).href : null;
     const style = document.body.style;
-    style.setProperty('--bg-image', url ? `url("${url}")` : 'none');
-    const size = url ? this.imageSizes.get(url) : undefined;
-    if (url && !size) {
+    if (!url) {
+      // Ohne eigene Grafik: eingebautes Pixelmuster als Kachel, Pixel so groß wie auf den Karten (1x, groß 2x).
+      const tile = backdrop(this.theme);
+      const factor = window.matchMedia('(min-width: 720px) and (min-height: 820px)').matches ? 4 : 2;
+      style.setProperty('--bg-image', `url("${tile.url}")`);
+      style.setProperty('--bg-size', `${tile.width * factor}px ${tile.height * factor}px`);
+      style.setProperty('--bg-repeat', 'repeat');
+      return;
+    }
+    style.setProperty('--bg-image', `url("${url}")`);
+    style.removeProperty('--bg-repeat');
+    const size = this.imageSizes.get(url);
+    if (!size) {
       const image = new Image();
       image.onload = () => {
         this.imageSizes.set(url, { width: image.naturalWidth, height: image.naturalHeight });
@@ -531,7 +580,14 @@ export class App {
         'div',
         { class: 'brand' },
         ASSETS.logo ? h('img', { class: 'logo', src: assetUrl(ASSETS.logo), alt: 'Werwolf' }) : h('span', { class: 'logo-text' }, 'Werwolf'),
-        view ? h('span', { class: 'phase' }, this.nightPass && view.phase !== 'GAME_OVER' ? `Nacht · Runde ${this.nightPass.round}` : `${view.phaseLabel}${view.round > 0 ? ` · Runde ${view.round}` : ''}`) : null,
+        view
+          ? h(
+              'span',
+              { class: 'phase' },
+              this.theme === 'night' ? emblem('moon', 'inline') : this.theme === 'day' ? emblem('sun', 'inline') : null,
+              this.nightPass && view.phase !== 'GAME_OVER' ? `Nacht · Runde ${this.nightPass.round}` : `${view.phaseLabel}${view.round > 0 ? ` · Runde ${view.round}` : ''}`,
+            )
+          : null,
       ),
       h('span', { class: 'spacer' }),
       view ? this.menu(view) : null,
@@ -572,8 +628,8 @@ export class App {
   private logPanel(view: PublicView | null): HTMLElement | null {
     if (!this.game || !view || this.logMode === 'off') return null;
     return this.logMode === 'public'
-      ? eventLog(view.events, 'Öffentliches Protokoll')
-      : eventLog(this.game.allEvents(), 'Debug-Protokoll (enthält geheime Informationen)');
+      ? eventLog(view.events, 'Protokoll', 'Alles, was alle wissen dürfen.')
+      : eventLog(this.game.allEvents(), 'Debug-Protokoll', 'Enthält geheime Informationen.');
   }
 
   private screen(view: PublicView | null): Child {
@@ -653,9 +709,9 @@ export class App {
     const current = players[this.revealIndex];
     if (!this.revealOpen) {
       return handoff({
-        title: players.length > 1 ? `Rollen ${this.revealIndex + 1} von ${players.length}` : 'Deine Rolle',
+        title: players.length > 1 ? 'Rollen' : 'Deine Rolle',
         name: current.name,
-        note: 'Nur diese Person darf jetzt auf den Bildschirm schauen.',
+        note: players.length > 1 ? `Karte ${this.revealIndex + 1} von ${players.length}. Nur diese Person darf jetzt auf den Bildschirm schauen.` : 'Nur diese Person darf jetzt auf den Bildschirm schauen.',
         showBack: true,
         onReady: () => {
           this.revealOpen = true;
@@ -664,9 +720,18 @@ export class App {
       });
     }
     const own = game.viewFor(current.id);
+    const team = own.self.team;
     return panel(
-      `${current.name}, deine Rolle`,
-      [roleCard(own.self.role), h('p', { class: 'role-text' }, own.self.role?.description ?? ''), knowledge(own)],
+      'Deine Rolle',
+      [
+        h('p', { class: 'kicker' }, current.name),
+        roleCard(own.self.role),
+        own.self.teamName
+          ? h('p', { class: `team-banner ${team === 'village' || team === 'werewolves' ? `team-${team}` : 'team-other'}` }, 'Du gewinnst mit: ', h('strong', null, own.self.teamName))
+          : null,
+        h('p', { class: 'role-text' }, own.self.role?.description ?? ''),
+        knowledge(own),
+      ],
       [
         button('Karte verdecken und weitergeben', () => {
           this.revealOpen = false;
@@ -679,7 +744,7 @@ export class App {
 
   private nightScreen(view: PublicView): Child {
     if (view.rules.nightMode === 'pass' && this.nightIntroRound < view.round) {
-      return panel(`Nacht ${view.round}`, [h('p', { class: 'narration' }, 'Die Nacht bricht herein. Alle schließen die Augen. Das Gerät geht reihum, jeder ist einmal dran.')], [
+      return panel(`Nacht ${view.round}`, [emblem('moon'), h('p', { class: 'narration center' }, 'Die Nacht bricht herein. Alle schließen die Augen. Das Gerät geht reihum, jeder ist einmal dran.')], [
         button('Alle Augen sind zu', () => {
           this.nightIntroRound = view.round;
           this.startPass(view, 1);
@@ -688,7 +753,7 @@ export class App {
       ]);
     }
     if (this.nightIntroRound < view.round) {
-      return panel(`Nacht ${view.round}`, [h('p', { class: 'narration' }, 'Die Nacht bricht herein. Alle schließen die Augen.')], [
+      return panel(`Nacht ${view.round}`, [emblem('moon'), h('p', { class: 'narration center' }, 'Die Nacht bricht herein. Alle schließen die Augen.')], [
         button('Alle Augen sind zu', () => {
           this.nightIntroRound = view.round;
           this.render();
@@ -767,9 +832,9 @@ export class App {
     const title = `Nacht ${pass.round}`;
     if (pass.stage === 'cover') {
       return handoff({
-        title: pass.pass > 1 ? `${title} · ${pass.pass}. Durchgang` : title,
+        title,
         name: own.self.name,
-        note: pass.pass > 1 ? 'Alle anderen halten die Augen geschlossen. Im zweiten Durchgang sind Rollen dran, die auf andere warten.' : 'Alle anderen halten die Augen geschlossen.',
+        note: pass.pass > 1 ? `${pass.pass}. Durchgang: Jetzt sind Rollen dran, die auf andere warten. Alle anderen halten die Augen geschlossen.` : 'Alle anderen halten die Augen geschlossen.',
         showBack: true,
         onReady: () => {
           pass.stage = 'turn';
@@ -921,17 +986,26 @@ export class App {
   }
 
   private announcementScreen(view: PublicView): Child {
-    const dayStart = [...view.events].reverse().find((e) => e.type === 'day-start');
-    return panel(`Tag ${view.round}`, [h('p', { class: 'narration' }, dayStart?.text ?? ''), this.players(view)], [
-      button('Diskussion beginnen', () => this.dispatch({ type: 'ADVANCE' })),
-    ]);
+    const start = view.events.map((e) => e.type).lastIndexOf('day-start');
+    const dayStart = start >= 0 ? view.events[start] : undefined;
+    const morning = start >= 0 ? view.events.slice(start + 1).filter((e) => e.visibility.kind === 'public' && MORNING_EVENTS.has(e.type)) : [];
+    return panel(
+      `Tag ${view.round}`,
+      [
+        emblem('sun'),
+        h('p', { class: 'narration center' }, dayStart?.text ?? ''),
+        ...morning.map((e) => h('p', { class: e.type === 'bear-growl' || DEATH_EVENTS.has(e.type) ? 'narration death-line' : 'narration' }, e.text)),
+        this.players(view),
+      ],
+      [button('Diskussion beginnen', () => this.dispatch({ type: 'ADVANCE' }))],
+    );
   }
 
   private votingScreen(view: PublicView): Child {
     const game = this.game!;
     const vote = view.vote!;
     const election = vote.kind === 'election';
-    const title = election ? (vote.round > 1 ? 'Stichwahl um das Hauptmannsamt' : 'Hauptmannswahl') : vote.round > 1 ? 'Stichwahl' : 'Abstimmung';
+    const title = vote.round > 1 ? 'Stichwahl' : election ? 'Hauptmann' : 'Abstimmung';
     const missing = vote.voters.length - vote.voted.length;
     const close = (label: string, variant: string) =>
       button(label, () => {
@@ -1020,7 +1094,12 @@ export class App {
     const banner = result.aborted
       ? [h('p', { class: 'narration' }, result.reason || 'Die Partie wurde abgebrochen.')]
       : [
-          h('div', { class: 'winner-banner' }, h('p', { class: 'winner-label' }, teamName ? 'Sieger' : 'Ergebnis'), h('p', { class: 'winner-name' }, teamName ?? 'Unentschieden')),
+          h(
+            'div',
+            { class: `winner-banner ${result.team === 'village' || result.team === 'werewolves' ? `team-${result.team}` : 'team-other'}` },
+            h('p', { class: 'winner-label' }, teamName ? 'Sieger' : 'Ergebnis'),
+            h('p', { class: 'winner-name' }, teamName ?? 'Unentschieden'),
+          ),
           h('p', { class: 'narration' }, result.reason),
         ];
     return panel(

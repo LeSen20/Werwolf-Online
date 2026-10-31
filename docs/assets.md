@@ -47,6 +47,7 @@ Alle Karten außer Werwolf, Dorfbewohner, Hexe und Seherin sind mit dem Kartenge
 | `backgrounds/game-over.png` | Spielende | sehr dunkel (Grundton #07070c) |
 
 - **320 x 180 Pixel** (Querformat 16:9). Das Spiel vergrößert so weit, dass das Fenster bedeckt ist, z.B. 6x bei 1920 x 1080, und schneidet den Rest ab.
+- Bis eine Datei eingetragen ist, zeigt das Spiel ein eingebautes Pixelmuster (`src/ui/pixel.ts`): Holzdielen in Vorbereitung und Tag, Sternenhimmel in der Nacht.
 - **Optional, für Handys empfohlen:** dieselben vier Bilder zusätzlich im Hochformat, **180 x 320 Pixel**, als `backgrounds/setup-portrait.png` usw. (Eintrag unter `backgroundsPortrait`). Ohne sie sieht man auf einem Handy im Hochformat nur die mittleren etwa 80 Pixel des Querformats.
 - Ruhig und kontrastarm, weil Logo und Phasenanzeige direkt darauf stehen. Deren Schrift ist in allen Phasen hell (Pergament), deshalb keine hellen Hintergründe: höchstens mittlere Helligkeit, oben dunkler. Der Grundton aus der Tabelle erscheint, solange das Bild lädt.
 
@@ -82,6 +83,7 @@ Alle Karten außer Werwolf, Dorfbewohner, Hexe und Seherin sind mit dem Kartenge
 | `icons/bot.png` | Bot | alle, in der Endübersicht |
 
 - **8 x 8 Pixel** (angezeigt 2x, 16 x 16 neben dem Namen). Mehr Details: 16 x 16 (dann 1x).
+- Bis eine Datei eingetragen ist, zeigt das Spiel eingebaute 8 x 8-Symbole (`src/ui/pixel.ts`: Totenkopf, Herz, Wolfskopf, Roboter). Eigene Dateien ersetzen sie.
 - Transparenter Hintergrund, eine kräftige Farbe mit dunklem Umriss, damit das Symbol auf hellen und dunklen Flächen lesbar ist.
 
 ## 5. Logo (1)

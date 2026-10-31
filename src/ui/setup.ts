@@ -14,7 +14,7 @@ import {
 } from '../engine';
 import { createTranslator, type TranslationSettings } from '../translation';
 import { panel } from './components';
-import { button, h, type Child } from './dom';
+import { button, h } from './dom';
 
 const STORAGE_KEY = 'werwolf.setup';
 const BASE_ROLE_IDS = ['villager', 'werewolf'];
@@ -98,8 +98,9 @@ export class SetupScreen {
   private summary: HTMLElement | null = null;
   private status: HTMLElement | null = null;
   private startButton: HTMLButtonElement | null = null;
-  /** Aufgeklappte Abschnitte (bleiben beim Neuzeichnen erhalten). */
-  private readonly open = { rules: false, language: false };
+  /** Angezeigter Abschnitt; auf dem Handy wäre alles untereinander sehr lang. */
+  private tab: 'players' | 'roles' | 'rules' = 'players';
+  private rolesTab: HTMLButtonElement | null = null;
 
   constructor(registry: Registry, onStart: (request: StartRequest) => void, rerender: () => void) {
     this.registry = registry;
@@ -198,6 +199,7 @@ export class SetupScreen {
       ...(issues.length > 0 ? [h('ul', { class: 'issues' }, issues.map((issue) => h('li', null, issue)))] : []),
     );
     const players = this.state.names.length;
+    if (this.rolesTab) this.rolesTab.textContent = `Rollen (${total})`;
     this.status?.replaceChildren(
       issues.length > 0
         ? h('span', { class: 'start-issue' }, issues.length > 1 ? `${issues[0]} (+${issues.length - 1})` : issues[0])
@@ -237,19 +239,6 @@ export class SetupScreen {
         h('input', { type: 'checkbox', checked, onchange: (e: Event) => update(() => onChange((e.target as HTMLInputElement).checked))() }),
         h('span', null, label, note ? h('span', { class: 'check-note' }, ` ${note}`) : null),
       );
-    const collapsible = (title: string, summary: string, key: keyof SetupScreen['open'], body: Child[]) =>
-      h(
-        'details',
-        {
-          class: 'panel collapsible',
-          open: this.open[key],
-          ontoggle: (e: Event) => {
-            this.open[key] = (e.target as HTMLDetailsElement).open;
-          },
-        },
-        h('summary', null, h('h2', null, title), h('span', { class: 'hint' }, summary)),
-        ...body,
-      );
     const select = <T extends string>(label: string, value: T, options: Array<[T, string]>, onChange: (v: T) => void) =>
       h(
         'label',
@@ -264,9 +253,41 @@ export class SetupScreen {
 
     const humans = s.bots.filter((bot) => !bot).length;
     const bots = s.names.length - humans;
+    const solo = () => {
+      s.bots = s.names.map((_, i) => i > 0);
+      if (this.generated.delete(s.names[0])) s.names[0] = '';
+      s.names = s.names.map((name, i) => (i === 0 ? name || 'Spieler 1' : ''));
+      for (let i = 1; i < s.names.length; i++) s.names[i] = this.botName(i);
+      this.rerender();
+      // Eigenen Namen gleich eintippen lassen. Ein Ersatzname wie "Du" ergäbe schiefe Bot-Sätze ("Du ist verdächtig").
+      if (isDefaultName(s.names[0])) {
+        const input = document.querySelector<HTMLInputElement>('input[aria-label="Name von Spieler 1"]');
+        input?.focus();
+        input?.select();
+      }
+    };
+    const together = () => {
+      s.names.forEach((name, i) => {
+        if (s.bots[i] && this.generated.delete(name)) s.names[i] = '';
+      });
+      s.bots = s.names.map(() => false);
+      s.names = s.names.map((name) => name || this.defaultName());
+      this.rerender();
+    };
+    const modeButton = (label: string, note: string, active: boolean, onclick: () => void) => {
+      const element = h('button', { type: 'button', class: active ? 'mode selected' : 'mode secondary', onclick }, h('strong', null, label), ' ', h('span', null, note));
+      element.setAttribute('aria-pressed', String(active));
+      return element;
+    };
     const playerSection = panel(
       'Spieler',
       [
+        h(
+          'div',
+          { class: 'mode-choice' },
+          modeButton('Allein', 'gegen Bots', humans === 1 && bots > 0, solo),
+          modeButton('Zusammen', 'ein Gerät, ohne Bots', bots === 0, together),
+        ),
         h('p', { class: 'hint' }, `${s.names.length} Spieler: ${humans} ${humans === 1 ? 'Mensch' : 'Menschen'}, ${bots} ${bots === 1 ? 'Bot' : 'Bots'}. Die Reihenfolge ist die Sitzordnung im Kreis (wichtig für Fuchs, Bärenführer und Ritter).`),
         h(
           'ol',
@@ -335,19 +356,6 @@ export class SetupScreen {
           s.names[s.names.length - 1] = this.botName(s.names.length - 1);
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
-        button('Einzelspieler gegen Bots', () => {
-          s.bots = s.names.map((_, i) => i > 0);
-          if (this.generated.delete(s.names[0])) s.names[0] = '';
-          s.names = s.names.map((name, i) => (i === 0 ? name || 'Spieler 1' : ''));
-          for (let i = 1; i < s.names.length; i++) s.names[i] = this.botName(i);
-          this.rerender();
-          // Eigenen Namen gleich eintippen lassen. Ein Ersatzname wie "Du" ergäbe schiefe Bot-Sätze ("Du ist verdächtig").
-          if (isDefaultName(s.names[0])) {
-            const input = document.querySelector<HTMLInputElement>('input[aria-label="Name von Spieler 1"]');
-            input?.focus();
-            input?.select();
-          }
-        }, 'secondary'),
         button('Neue Bot-Namen', () => {
           this.renewBotNames(true);
           this.rerender();
@@ -415,14 +423,7 @@ export class SetupScreen {
     ]);
 
     const r = s.rules;
-    const rulesSummary = () =>
-      [
-        s.captain ? 'mit Hauptmann' : 'ohne Hauptmann',
-        r.nightMode === 'pass' ? 'Nacht reihum' : 'Nacht nach Rollen',
-        s.seerResult === 'role' ? 'Seherin sieht Rolle' : 'Seherin: Werwolf ja/nein',
-        s.discussion > 0 ? `${s.discussion} s Diskussion` : 'Diskussion ohne Zeit',
-      ].join(' · ');
-    const rulesSection = collapsible('Regeln', rulesSummary(), 'rules', [
+    const rulesSection = panel('Regeln', [
       h(
         'div',
         { class: 'rule-grid' },
@@ -446,16 +447,10 @@ export class SetupScreen {
         checkbox('Nachts bekommt jeder das Gerät (verrät niemanden)', s.rules.nightMode === 'pass', (v) => (s.rules.nightMode = v ? 'pass' : 'roles')),
       ),
     ]);
-    // Zusammenfassung im zugeklappten Kopf aktuell halten.
-    const refreshSummary = () => {
-      const hint = rulesSection.querySelector('summary .hint');
-      if (hint) hint.textContent = rulesSummary();
-    };
-    rulesSection.addEventListener('change', refreshSummary);
-    rulesSection.addEventListener('input', refreshSummary);
 
     const translator = createTranslator({ libreTranslateUrl: s.libreTranslateUrl });
-    const translationSection = collapsible('Sprachen', `Übersetzer: ${translator.name}`, 'language', [
+    const translationSection = panel('Sprachen', [
+      h('p', null, `Übersetzer: ${translator.name}.`),
       h(
         'p',
         { class: 'hint' },
@@ -488,13 +483,21 @@ export class SetupScreen {
         translation: { libreTranslateUrl: s.libreTranslateUrl || null },
       });
     });
+    const tab = (id: SetupScreen['tab'], label: string) => {
+      const element = h('button', { type: 'button', class: id === this.tab ? 'tab selected' : 'tab', role: 'tab', 'aria-selected': String(id === this.tab) }, label);
+      element.addEventListener('click', () => {
+        this.tab = id;
+        this.rerender();
+      });
+      return element;
+    };
+    this.rolesTab = tab('roles', 'Rollen');
+    const sections = { players: [playerSection], roles: [rolesSection], rules: [rulesSection, translationSection] }[this.tab];
     const element = h(
       'div',
       { class: 'setup' },
-      playerSection,
-      rolesSection,
-      rulesSection,
-      translationSection,
+      h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Vorbereitung' }, tab('players', `Spieler (${s.names.length})`), this.rolesTab, tab('rules', 'Regeln')),
+      ...sections,
       h('div', { class: 'start-bar' }, this.status, this.startButton),
       h(
         'p',

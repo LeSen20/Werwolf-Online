@@ -2,6 +2,7 @@ import { FACTION_LABELS, type DecisionPrompt, type GameEvent, type PlayerId, typ
 import { ASSETS, assetUrl, type IconKey } from './assets';
 import { cardAnimation } from './cardAnimation';
 import { button, h, type Child } from './dom';
+import { pixelIconUrl, type PixelIconName } from './pixel';
 
 export type Theme = 'setup' | 'night' | 'day' | 'gameOver';
 
@@ -88,10 +89,15 @@ export function whoAmI(view: PlayerView): HTMLElement {
   );
 }
 
-/** Symbol aus ASSETS.icons oder Textersatz. */
-export function icon(key: IconKey, fallback: string): HTMLElement {
+/** Symbol aus ASSETS.icons, sonst das eingebaute Pixelsymbol. */
+export function icon(key: IconKey, alt: string): HTMLElement {
   const path = ASSETS.icons[key];
-  return path ? h('img', { class: 'icon', src: assetUrl(path), alt: fallback }) : h('span', { class: 'icon-text' }, fallback);
+  return h('img', { class: 'icon', src: path ? assetUrl(path) : pixelIconUrl(key), alt });
+}
+
+/** Eingebautes Pixelsymbol, z.B. Mond und Sonne; groß als Emblem (4x). */
+export function emblem(name: PixelIconName, size: 'inline' | 'large' = 'large'): HTMLElement {
+  return h('img', { class: size === 'large' ? 'emblem' : 'icon', src: pixelIconUrl(name), alt: '', 'aria-hidden': 'true' });
 }
 
 /** Avatar aus ASSETS.avatars oder farbiges Feld mit Anfangsbuchstaben (Farbe aus dem Namen, überall gleich). */
@@ -108,6 +114,8 @@ export interface ChatLine {
   speaker: string;
   avatarKey: string | null;
   text: string;
+  /** Nachricht eines Menschen am Gerät (rechts, wie im Messenger). */
+  mine: boolean;
 }
 
 export function chatLog(lines: ChatLine[], typing: string[]): HTMLElement {
@@ -116,7 +124,12 @@ export function chatLog(lines: ChatLine[], typing: string[]): HTMLElement {
     { class: 'chat-log', id: 'chat-log' },
     lines.length === 0 ? h('p', { class: 'hint' }, 'Noch keine Nachrichten.') : null,
     lines.map((line) =>
-      h('div', { class: 'chat-line' }, avatar(line.speaker, line.avatarKey), h('div', null, h('strong', null, line.speaker), h('p', null, line.text))),
+      h(
+        'div',
+        { class: line.mine ? 'chat-line mine' : 'chat-line' },
+        avatar(line.speaker, line.avatarKey),
+        h('div', { class: 'bubble' }, h('strong', { class: 'speaker' }, line.speaker), h('p', null, line.text)),
+      ),
     ),
     h('p', { class: 'hint typing', id: 'typing' }, typing.length > 0 ? `${typing.join(', ')} ${typing.length === 1 ? 'tippt' : 'tippen'} ...` : ''),
   );
@@ -141,7 +154,7 @@ export function playerList(players: PlayerSummary[], avatarOf: (id: PlayerId) =>
             p.role ? h('span', { class: 'tag' }, p.role.name) : p.faction ? h('span', { class: 'tag' }, FACTION_LABELS[p.faction]) : null,
             p.relations.includes('werewolf-pack') ? icon('pack', '') : null,
             p.relations.includes('lover') || p.relations.includes('couple') ? icon('lover', '') : null,
-            p.badges.map((badge) => h('span', { class: 'tag tag-badge' }, badge)),
+            p.badges.map((badge) => h('span', { class: 'tag tag-badge' }, emblem('captain', 'inline'), badge)),
             p.labels.map((label) => h('span', { class: 'tag tag-info' }, label)),
             p.alive ? null : h('span', { class: 'tag tag-dead' }, icon('dead', ''), p.deathCause ? `tot: ${p.deathCause}` : 'tot'),
           ),
@@ -223,6 +236,10 @@ export function promptForm(prompt: DecisionPrompt, onAnswer: (answer: PromptAnsw
   const container = h('div', { class: 'prompt' });
   const valid = new Set(prompt.kind === 'players' ? prompt.candidates.map((c) => c.id) : prompt.choices.map((c) => c.id));
   let selected: string[] = (key ? (selections.get(key) ?? []) : []).filter((id) => valid.has(id));
+  // Nur eine mögliche Wahl (z.B. Heiltrank für das Opfer): gleich vorauswählen, Bestätigen reicht.
+  if (!key || !selections.has(key)) {
+    if (prompt.kind === 'players' && prompt.candidates.length === 1 && prompt.min === 1 && prompt.max === 1) selected = [prompt.candidates[0].id];
+  }
   const answer = (value: PromptAnswer) => {
     if (key) selections.delete(key);
     onAnswer(value);
@@ -283,11 +300,12 @@ export function promptForm(prompt: DecisionPrompt, onAnswer: (answer: PromptAnsw
   return container;
 }
 
-export function eventLog(events: GameEvent[], title: string): HTMLElement {
+export function eventLog(events: GameEvent[], title: string, note?: string): HTMLElement {
   return h(
     'section',
     { class: 'panel log' },
     h('h2', null, title),
+    note ? h('p', { class: 'hint' }, note) : null,
     h(
       'ol',
       null,

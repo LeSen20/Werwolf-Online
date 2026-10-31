@@ -88,7 +88,7 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background: var(--bg-image, none) center / var(--bg-size, cover) no-repeat;
+  background: var(--bg-image, none) center top / var(--bg-size, cover) var(--bg-repeat, no-repeat);
   image-rendering: pixelated;
 }
 
@@ -201,12 +201,26 @@ body::before {
     inset 0 0 0 4px var(--gold),
     4px 4px 0 var(--shadow);
   padding: 20px;
-  margin-top: 14px;
+  margin-top: 34px;
 }
 
-.panel h2 {
-  margin: 0 0 12px;
+/* Titel als Kartusche auf dem oberen Rand, wie der Rollenname auf den Karten. */
+.panel > h2 {
+  position: relative;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: -39px auto 14px;
+  padding: 4px 16px 2px;
   font-size: 16px;
+  text-align: center;
+  /* Lange Wörter trennen statt über den Rand ragen (Titelschrift ist breit). */
+  hyphens: auto;
+  overflow-wrap: anywhere;
+  background: var(--field);
+  border: 2px solid var(--line);
+  box-shadow:
+    inset 0 -2px 0 var(--surface-2),
+    3px 3px 0 var(--shadow);
 }
 
 .actor {
@@ -250,6 +264,7 @@ body::before {
 }
 
 /* Knöpfe wie in alten Spielen: Umriss, harter Schatten, beim Drücken eingedrückt. */
+/* Knöpfe wie in alten Spielen: Lichtkante oben links, Schattenkante unten rechts, harter Schlagschatten. */
 button {
   font: inherit;
   min-height: 44px;
@@ -257,7 +272,10 @@ button {
   border: 2px solid var(--line);
   background: var(--accent);
   color: var(--accent-text);
-  box-shadow: 3px 3px 0 var(--line);
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.2),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.25),
+    3px 3px 0 var(--line);
   cursor: pointer;
 }
 
@@ -267,7 +285,9 @@ button:hover:not(:disabled) {
 
 button:active:not(:disabled) {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0 var(--line);
+  box-shadow:
+    inset 2px 2px 0 rgba(0, 0, 0, 0.25),
+    1px 1px 0 var(--line);
 }
 
 button.secondary,
@@ -1099,35 +1119,6 @@ input[type='checkbox'] {
   margin-left: 0;
 }
 
-/* Aufklappbare Abschnitte: Kopf wie eine Panel-Überschrift mit Zusammenfassung. */
-.collapsible > summary {
-  display: grid;
-  gap: 2px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.collapsible > summary::-webkit-details-marker {
-  display: none;
-}
-
-.collapsible > summary h2 {
-  margin: 0;
-}
-
-.collapsible > summary h2::after {
-  content: ' +';
-  color: var(--muted);
-}
-
-.collapsible[open] > summary {
-  margin-bottom: 12px;
-}
-
-.collapsible[open] > summary h2::after {
-  content: ' -';
-}
-
 /* Startleiste bleibt beim Scrollen unten sichtbar. */
 .start-bar {
   position: sticky;
@@ -1178,5 +1169,202 @@ input[type='checkbox'] {
   .app.with-chat .chat-log {
     min-height: 320px;
     max-height: calc(100vh - 230px);
+  }
+
+  /* Neben dem Chat ist die Spalte schmaler: weniger, dafür breitere Spielerkacheln. */
+  .app.with-chat .player-list {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+
+/* ---- Pixel-Symbole und Embleme (eingebaut, 8 x 8) ---- */
+.emblem {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 4px auto 8px;
+  image-rendering: pixelated;
+}
+
+.phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phase .icon,
+.tag-badge .icon {
+  margin-right: 0;
+  vertical-align: -3px;
+}
+
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.center {
+  text-align: center;
+}
+
+.kicker {
+  margin: 0 0 4px;
+  text-align: center;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* Siegteam auf der Rollenkarte und im Siegerbanner: Dorf blau, Werwölfe rot, Einzelgänger Gold. */
+.team-banner {
+  width: fit-content;
+  margin: 10px auto 4px;
+  padding: 4px 12px;
+  color: var(--accent-text);
+  border: 2px solid var(--line);
+  box-shadow: 2px 2px 0 var(--shadow);
+}
+
+.team-village {
+  background: var(--village);
+}
+
+.team-werewolves {
+  background: var(--werewolves);
+}
+
+.team-other {
+  background: var(--neutral);
+}
+
+.winner-banner.team-village,
+.winner-banner.team-werewolves,
+.winner-banner.team-other {
+  color: var(--accent-text);
+}
+
+.winner-banner.team-village .winner-label,
+.winner-banner.team-werewolves .winner-label,
+.winner-banner.team-other .winner-label {
+  color: var(--surface);
+}
+
+/* ---- Chat als Sprechblasen: Bots links, Menschen am Gerät rechts ---- */
+.chat-log {
+  background: var(--surface-2);
+}
+
+.chat-line {
+  align-items: flex-end;
+}
+
+.chat-line.mine {
+  flex-direction: row-reverse;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: 6px 10px;
+  background: var(--field);
+  border: 2px solid var(--line);
+  box-shadow: 2px 2px 0 rgba(21, 14, 11, 0.25);
+}
+
+.chat-line.mine .bubble {
+  color: var(--accent-text);
+  background: var(--village);
+}
+
+.bubble .speaker {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.chat-line.mine .bubble .speaker {
+  color: var(--surface);
+}
+
+.bubble p {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* Auswahl: gewählt mit kleinem Goldquadrat als Markierung. */
+button.choice.selected::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: 2px;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--line);
+}
+
+/* ---- Vorbereitung: Reiter und Spielart ---- */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+button.tab {
+  min-height: 40px;
+  padding: 6px 4px;
+  font-size: 0.95rem;
+  color: var(--page-text);
+  background: var(--line);
+  border-color: var(--gold);
+  box-shadow: 2px 2px 0 var(--shadow);
+}
+
+button.tab.selected {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow:
+    inset 0 -3px 0 var(--accent),
+    2px 2px 0 var(--shadow);
+}
+
+.mode-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+button.mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+}
+
+button.mode span {
+  font-size: 0.8rem;
+}
+
+button.mode.selected span {
+  color: var(--surface-2);
+}
+
+/* ---- Einblenden eines neuen Bildschirms in Pixelschritten ---- */
+.enter {
+  animation: enter 0.15s steps(3, end);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0.2;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
   }
 }
