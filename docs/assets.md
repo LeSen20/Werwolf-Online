@@ -41,14 +41,14 @@ Alle Karten außer Werwolf, Dorfbewohner, Hexe und Seherin sind mit dem Kartenge
 
 | Datei | Wann | Helligkeit |
 | --- | --- | --- |
-| `backgrounds/setup.png` | Vorbereitung | hell |
-| `backgrounds/night.png` | Rollen ansehen, Nacht | dunkel |
-| `backgrounds/day.png` | Tag, Diskussion, Abstimmung | hell |
-| `backgrounds/game-over.png` | Spielende | dunkel |
+| `backgrounds/setup.png` | Vorbereitung | dunkel (Holz, Grundton #261912) |
+| `backgrounds/night.png` | Rollen ansehen, Nacht | dunkel (Nachtblau, Grundton #0c0e20) |
+| `backgrounds/day.png` | Tag, Diskussion, Abstimmung | mittel (warmes Holz, Grundton #5a3f28) |
+| `backgrounds/game-over.png` | Spielende | sehr dunkel (Grundton #07070c) |
 
 - **320 x 180 Pixel** (Querformat 16:9). Das Spiel vergrößert so weit, dass das Fenster bedeckt ist, z.B. 6x bei 1920 x 1080, und schneidet den Rest ab.
 - **Optional, für Handys empfohlen:** dieselben vier Bilder zusätzlich im Hochformat, **180 x 320 Pixel**, als `backgrounds/setup-portrait.png` usw. (Eintrag unter `backgroundsPortrait`). Ohne sie sieht man auf einem Handy im Hochformat nur die mittleren etwa 80 Pixel des Querformats.
-- Ruhig und kontrastarm, weil Logo und Phasenanzeige direkt darauf stehen. Deren Schrift ist in hellen Phasen dunkel und in dunklen Phasen hell, deshalb die Helligkeit aus der Tabelle einhalten.
+- Ruhig und kontrastarm, weil Logo und Phasenanzeige direkt darauf stehen. Deren Schrift ist in allen Phasen hell (Pergament), deshalb keine hellen Hintergründe: höchstens mittlere Helligkeit, oben dunkler. Der Grundton aus der Tabelle erscheint, solange das Bild lädt.
 
 ## 3. Avatare (13)
 

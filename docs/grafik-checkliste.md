@@ -51,12 +51,12 @@ Charaktere:
 
 ## 2. Hintergründe (4, dazu 4 optional)
 
-Querformat **320 x 180 Pixel**. Ruhig und kontrastarm, Hauptmotiv in die Mitte.
+Querformat **320 x 180 Pixel**. Ruhig und kontrastarm, Hauptmotiv in die Mitte. Nicht hell: Logo und Phasenanzeige darüber sind in allen Phasen hell.
 
-- [ ] `backgrounds/setup.png`: Vorbereitung (hell)
-- [ ] `backgrounds/night.png`: Rollen ansehen und Nacht (dunkel)
-- [ ] `backgrounds/day.png`: Tag, Diskussion, Abstimmung (hell)
-- [ ] `backgrounds/game-over.png`: Spielende (dunkel)
+- [ ] `backgrounds/setup.png`: Vorbereitung (dunkel, Holz)
+- [ ] `backgrounds/night.png`: Rollen ansehen und Nacht (dunkel, Nachtblau)
+- [ ] `backgrounds/day.png`: Tag, Diskussion, Abstimmung (mittel, warmes Holz)
+- [ ] `backgrounds/game-over.png`: Spielende (sehr dunkel)
 
 Optional, für Handys empfohlen, im Hochformat **180 x 320 Pixel**:
 
