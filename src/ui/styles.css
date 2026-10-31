@@ -1,0 +1,675 @@
+/*
+ * Design im Stil der Rollenkarten: Pergament im Holzrahmen mit Goldeinlage, Nachthimmel, Blutrot.
+ * Farben aus der Palette der Werwolf-Karte, Pixelschrift, eckige Formen, harte Schatten.
+ * Hintergrundbilder kommen aus src/ui/assets.ts.
+ */
+
+/*
+ * Righteous von Otter and Bench (CC BY 4.0), Umlaute und ß ergänzt wie auf der Werwolf-Karte.
+ * 8 Pixel pro em: scharf nur bei 8, 16, 24, 32 px. Fehlende Zeichen (z.B. „ – …) kommen aus der
+ * Pixelify Sans, font-size-adjust gleicht die x-Höhe an (Righteous: 0.625).
+ */
+@font-face {
+  font-family: 'Righteous';
+  src: url('./fonts/Righteous-umlaute.ttf') format('truetype');
+  font-display: swap;
+}
+
+:root {
+  /* Seite (je Phase anders) und Schrift direkt darauf. */
+  --page: #261912;
+  --page-text: #e3d3aa;
+  --page-muted: #a28a61;
+  /* Pergament-Flächen wie der Kartenrahmen. */
+  --surface: #e3d3aa;
+  --surface-2: #d3bf93;
+  --field: #f2f0e6;
+  --text: #150e0b;
+  --muted: #5a3f28;
+  --border: #a28a61;
+  --chip: #d3bf93;
+  /* Holz, Gold, Blutrot, Nacht. */
+  --line: #261912;
+  --gold: #a88b45;
+  --accent: #961f1e;
+  --accent-text: #f2f0e6;
+  --danger: #961f1e;
+  --night: #0f142b;
+  --village: #35426e;
+  --werewolves: #961f1e;
+  --neutral: #7f6630;
+  --shadow: rgba(7, 7, 12, 0.55);
+  --font-display: 'Righteous', 'Pixelify Sans', system-ui, sans-serif;
+  --font-body: 'Pixelify Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.35;
+  /* Die Ligaturen der Pixelschrift (fi, fl) sind schlecht lesbar. */
+  font-variant-ligatures: none;
+}
+
+/* Phasen unterscheiden sich nur im Hintergrund: Holz (Vorbereitung), helleres Holz (Tag), Nacht. */
+body[data-theme='day'] {
+  --page: #5a3f28;
+}
+
+body[data-theme='night'] {
+  --page: #0c0e20;
+  --page-muted: #a3a9c2;
+}
+
+body[data-theme='gameOver'] {
+  --page: #07070c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--page-text);
+  background: var(--page);
+  transition: background-color 0.4s;
+  /* Pixelschrift ohne Kantenglättung, wo der Browser das erlaubt (macOS). */
+  -webkit-font-smoothing: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Hintergrundbild als feste Ebene: background-attachment: fixed mit cover funktioniert auf iOS nicht. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg-image, none) center / var(--bg-size, cover) no-repeat;
+  image-rendering: pixelated;
+}
+
+.app {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+
+.topbar {
+  color: var(--page-text);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Righteous für Logo und Überschriften, immer in ganzzahligen Vielfachen von 8 px. Fließtext,
+   Knöpfe und Chat bleiben in der Pixelify Sans: Righteous wäre dafür bei 8 px zu klein, bei 16 px zu groß. */
+.logo-text,
+.panel h2,
+.actor h3,
+.prompt h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size-adjust: 0.625;
+  /* Natürliche Zeilenhöhe der Schrift (13 Pixel): nichts überlappt, alles bleibt im Pixelraster. */
+  line-height: 1.625;
+}
+
+/* Rote Initiale wie im Kartentitel. */
+.panel h2::first-letter,
+.actor h3::first-letter,
+.prompt h3::first-letter {
+  color: var(--accent);
+}
+
+.logo-text {
+  display: inline-block;
+  font-size: 24px;
+  letter-spacing: 3px;
+  text-shadow: 3px 3px 0 var(--shadow);
+}
+
+.logo-text::first-letter {
+  color: #d33427;
+}
+
+/* Pixelgrafik: ganzzahlig vergrößern (Logo 24 px hoch -> 2x), nie weichzeichnen. */
+.logo {
+  height: 48px;
+  image-rendering: pixelated;
+}
+
+.phase {
+  color: var(--page-muted);
+  font-size: 0.85rem;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Pergament im Holzrand mit Goldeinlage, wie der Rahmen der Rollenkarten. */
+.panel {
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    inset 0 0 0 4px var(--gold),
+    4px 4px 0 var(--shadow);
+  padding: 20px;
+  margin-top: 14px;
+}
+
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.actor {
+  border-top: 2px dashed var(--border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.actor h3,
+.prompt h3 {
+  margin: 4px 0 8px;
+  font-size: 16px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.start {
+  justify-content: flex-end;
+}
+
+/* Knöpfe wie in alten Spielen: Umriss, harter Schatten, beim Drücken eingedrückt. */
+button {
+  font: inherit;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 2px solid var(--line);
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: 3px 3px 0 var(--line);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+button:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--line);
+}
+
+button.secondary,
+button.choice {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+button.choice.selected,
+button.selected {
+  background: var(--line);
+  color: var(--surface);
+  border-color: var(--gold);
+}
+
+button.small {
+  min-height: 32px;
+  padding: 3px 10px;
+  font-size: 0.875rem;
+  box-shadow: 2px 2px 0 var(--line);
+}
+
+button.danger {
+  background: var(--surface-2);
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 3px 3px 0 var(--danger);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+input,
+select {
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 0;
+  border: 2px solid var(--line);
+  box-shadow: inset 2px 2px 0 rgba(21, 14, 11, 0.2);
+  background: var(--field);
+  color: var(--text);
+  min-width: 0;
+}
+
+input[type='checkbox'] {
+  accent-color: var(--accent);
+  box-shadow: none;
+}
+
+.choice-grid,
+.check-grid,
+.count-grid,
+.rule-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  margin: 8px 0;
+}
+
+.rule-grid {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.check input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.segmented {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.name-list {
+  padding-left: 24px;
+  margin: 0;
+}
+
+.name-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.name-list input {
+  flex: 1;
+}
+
+.hint,
+.event-meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.issues {
+  color: var(--danger);
+  padding-left: 20px;
+}
+
+.ok {
+  color: var(--village);
+}
+
+.message {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 2px solid var(--danger);
+  box-shadow: 3px 3px 0 var(--shadow);
+  background: var(--field);
+  color: var(--danger);
+}
+
+.narration {
+  font-size: 1.15rem;
+}
+
+.timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.4rem;
+  margin: 4px 0;
+}
+
+.timer:empty {
+  display: none;
+}
+
+.info,
+.group-status {
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+.player-list,
+.knowledge {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+.player {
+  padding: 6px 10px;
+  border: 2px solid var(--border);
+}
+
+.player.dead .player-name {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  background: var(--chip);
+  margin-left: 6px;
+}
+
+.tag-dead {
+  color: var(--danger);
+}
+
+/* ---- Rollenkarten: komplette Kartengrafik (192 x 288) oder Platzhalter im selben Aufbau ---- */
+.card {
+  --card-color: var(--muted);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  aspect-ratio: 2 / 3;
+  padding: 8px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    inset 0 0 0 4px var(--gold),
+    4px 4px 0 var(--shadow);
+  color: var(--text);
+  margin: 8px auto;
+}
+
+/* Groß 1x (192 x 288), auf großen Bildschirmen 2x; klein 0,5x als Vorschaubild. */
+.card-large {
+  width: 192px;
+}
+
+.card-small {
+  width: 96px;
+  padding: 4px;
+  gap: 3px;
+  box-shadow:
+    inset 0 0 0 1px var(--surface),
+    inset 0 0 0 2px var(--gold),
+    2px 2px 0 var(--shadow);
+  margin: 4px auto;
+}
+
+@media (min-width: 720px) and (min-height: 820px) {
+  .card-large {
+    width: 384px;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .card-large .card-name {
+    font-size: 16px;
+  }
+}
+
+.card.faction-village {
+  --card-color: var(--village);
+}
+
+.card.faction-werewolves {
+  --card-color: var(--werewolves);
+}
+
+.card.faction-neutral {
+  --card-color: var(--neutral);
+}
+
+/* Kartengrafik mit eigenem Rahmen, Titel und Text: ohne zusätzlichen Rahmen anzeigen. */
+.card-art {
+  aspect-ratio: auto;
+  padding: 0;
+  gap: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.card-art img,
+.card-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  image-rendering: pixelated;
+}
+
+.card-canvas {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+/* 0,5x lässt bei Pixelgrafik jedes zweite Pixel weg: Vorschaubilder daher glatt verkleinern. */
+.card-small.card-art img {
+  image-rendering: auto;
+}
+
+/* Platzhalter: Titel oben wie in der Kartusche, darunter das dunkle Bildfeld. */
+.card-name {
+  order: -1;
+  padding: 2px 4px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 8px;
+  font-size-adjust: 0.625;
+  line-height: 1.625;
+  background: var(--field);
+  border: 2px solid var(--line);
+}
+
+.card-name::first-letter {
+  color: var(--accent);
+}
+
+/* Kleine Karten: Name lesbar unter dem Bild statt als winzige Kartusche. */
+.card-small .card-name {
+  order: 1;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-size-adjust: none;
+  line-height: 1.3;
+  padding: 1px 2px;
+  border-width: 1px;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.card-art .card-name {
+  margin-top: 3px;
+}
+
+.card-placeholder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--night);
+  border: 2px solid var(--card-color);
+}
+
+.card-initial {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-size-adjust: 0.625;
+  line-height: 1.625;
+  color: var(--surface);
+}
+
+.card-small .card-initial {
+  font-size: 16px;
+}
+
+.card-back .card-placeholder {
+  border-color: var(--gold);
+}
+
+.placeholder-label {
+  font-size: 0.75rem;
+  color: var(--page-muted);
+}
+
+.card-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.final {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 6px;
+}
+
+.final.winner {
+  outline: 2px dashed var(--accent);
+}
+
+.log ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 0.9rem;
+}
+
+.event {
+  padding: 4px 0;
+  border-bottom: 2px dotted var(--border);
+}
+
+.event-debug {
+  color: var(--muted);
+}
+
+.event-players {
+  font-style: italic;
+}
+
+/* ---- Bots und Chat ---- */
+.bot-toggle {
+  flex: none;
+  font-size: 0.85rem;
+}
+
+.chat-log {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.chat-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.chat-line p {
+  margin: 2px 0 0;
+}
+
+/* Avatar 16 x 16 (2x) oder 32 x 32 (1x), eckig wie Pixelgrafik. */
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.avatar-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+  background: hsl(var(--avatar-hue, 200) 45% 42%);
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-input input {
+  flex: 1;
+}
+
+.typing {
+  min-height: 1.2em;
+  margin: 0;
+}
+
+/* Symbol 8 x 8 (2x) oder 16 x 16 (1x). */
+.icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+  vertical-align: -3px;
+  margin-right: 4px;
+}
+
+.icon-text:empty {
+  display: none;
+}
+
+.credits {
+  margin-top: 24px;
+  font-size: 0.75rem;
+  color: var(--page-muted);
+  text-align: center;
+}
