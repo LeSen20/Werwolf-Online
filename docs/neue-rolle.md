@@ -54,6 +54,7 @@ export const protector = defineRole({
 | Feld | Bedeutung |
 | --- | --- |
 | `id`, `name`, `description` | Kennung und Texte |
+| `descriptionFor` | optional: Beschreibung passend zu den Optionen (z.B. Seherin: Rolle oder nur Werwolf ja/nein) |
 | `faction` | Gesinnung: `village`, `werewolves`, `neutral` (z.B. für die Seherin) |
 | `team` | Siegteam; eigene Teams über `rules` registrieren |
 | `unique` | höchstens einmal im Stapel |

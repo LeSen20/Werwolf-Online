@@ -98,6 +98,8 @@ export interface RoleDefinition {
   id: RoleId;
   name: string;
   description: string;
+  /** Beschreibung passend zu den eingestellten Optionen; ersetzt `description` in der Spieleransicht. */
+  descriptionFor?(ctx: EngineContext): string;
   /** Gesinnung (was z.B. die Seherin sieht). */
   faction: Faction;
   /** Siegteam (mit wem die Rolle gewinnt). */

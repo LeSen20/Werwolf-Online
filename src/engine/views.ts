@@ -121,7 +121,7 @@ export function roleInfo(ctx: EngineContext, roleId: RoleId): RoleInfo {
   return {
     id: role.id,
     name: role.name,
-    description: role.description,
+    description: role.descriptionFor?.(ctx) ?? role.description,
     faction: role.faction,
     factionName: FACTION_LABELS[role.faction],
     team: role.team,

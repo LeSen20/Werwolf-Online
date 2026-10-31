@@ -21,7 +21,9 @@ const investigate: AbilityDefinition = {
       .filter((p) => options.canInspectSelf || p.id !== actor.id)
       .map((p) => p.id);
   },
-  describe: () => ({ title: 'Wessen Gesinnung möchtest du sehen?' }),
+  describe: (ctx) => ({
+    title: ctx.options<SeerOptions>('seer').result === 'role' ? 'Wessen Karte möchtest du ansehen?' : 'Wessen Gesinnung möchtest du sehen?',
+  }),
   onSubmit(ctx, actor, input) {
     const target = ctx.player(input.targets[0]);
     const role = ctx.role(target);
@@ -42,10 +44,16 @@ const investigate: AbilityDefinition = {
   },
 };
 
+const DESCRIPTIONS: Record<SeerOptions['result'], string> = {
+  role: 'Sieht sich jede Nacht die Karte eines Spielers an und erfährt so seine Rolle. Sie kann ihr Wissen tagsüber teilen.',
+  faction: 'Untersucht jede Nacht einen Spieler und erfährt, ob er zu den Werwölfen gehört. Sie kann ihr Wissen tagsüber teilen.',
+};
+
 export const seer = defineRole({
   id: 'seer',
   name: 'Seherin',
-  description: 'Untersucht jede Nacht einen Spieler und erfährt, ob er zu den Werwölfen gehört. Sie kann ihr Wissen tagsüber teilen.',
+  description: DESCRIPTIONS.faction,
+  descriptionFor: (ctx) => DESCRIPTIONS[ctx.options<SeerOptions>('seer').result],
   faction: 'village',
   team: 'village',
   unique: true,

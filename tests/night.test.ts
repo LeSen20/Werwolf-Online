@@ -25,6 +25,15 @@ describe('Seherin', () => {
     expect(roleResult.ok && roleResult.events.find((e) => e.type === 'seer-result')?.text).toBe('Clara ist: Hexe.');
   });
 
+  it('beschreibt Karte und Frage passend zur Einstellung', () => {
+    const faction = setupGame(['werewolf', 'seer', 'villager', 'villager', 'villager']);
+    expect(faction.viewFor('p2').self.role?.description).toContain('ob er zu den Werwölfen gehört');
+    expect(faction.viewFor('p2').pending[0]?.title).toBe('Wessen Gesinnung möchtest du sehen?');
+    const role = setupGame(['werewolf', 'seer', 'villager', 'villager', 'villager'], { options: { seer: { result: 'role' } } });
+    expect(role.viewFor('p2').self.role?.description).toContain('erfährt so seine Rolle');
+    expect(role.viewFor('p2').pending[0]?.title).toBe('Wessen Karte möchtest du ansehen?');
+  });
+
   it('darf sich nicht selbst untersuchen', () => {
     const game = setupGame(['werewolf', 'seer', 'villager', 'villager', 'villager']);
     expectError(use(game, 'p2', 'seer.investigate', ['p2']), 'INVALID_TARGET');

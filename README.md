@@ -60,7 +60,7 @@ Grundspiel ("Die Werwölfe von Düsterwald"):
 | --- | --- | --- |
 | Dorfbewohner | Dorf | keine |
 | Werwolf | Werwölfe | wählt nachts gemeinsam mit dem Rudel ein Opfer, Rudel kennt sich |
-| Seherin | Dorf | untersucht nachts einen Spieler (Standard: Werwolf ja/nein) |
+| Seherin | Dorf | sieht nachts die Karte eines Spielers: genaue Rolle (Originalregel, Standard in der Oberfläche) oder nur Werwolf ja/nein (Standard der Engine) |
 | Hexe | Dorf | Heiltrank (rettet das Werwolfopfer) und Gifttrank, je einmal |
 | Jäger | Dorf | nimmt beim Tod einen Spieler mit |
 | Amor | Dorf | verliebt in Nacht 1 zwei Spieler, die gemeinsam sterben |

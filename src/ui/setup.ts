@@ -102,7 +102,7 @@ export class SetupScreen {
       specials: ['seer', 'witch', 'hunter', 'cupid'],
       counts: {},
       rules: { ...DEFAULT_RULES, nightMode: 'pass' },
-      seerResult: 'faction',
+      seerResult: 'role',
       witchSelfHeal: true,
       witchBoth: true,
       mixedLovers: false,
@@ -362,7 +362,7 @@ export class SetupScreen {
         select('Gleichstand in der Stichwahl', r.runoffTieBreak, [['none', 'Niemand stirbt'], ['random', 'Zufall']], (v) => (r.runoffTieBreak = v)),
         select('Beim Tod aufdecken', r.revealRoleOnDeath, [['role', 'Rolle'], ['faction', 'Nur Fraktion'], ['none', 'Nichts']], (v) => (r.revealRoleOnDeath = v)),
         select('Sieg der Werwölfe', r.werewolfWin, [['parity', 'Bei Gleichstand (Parität)'], ['elimination', 'Erst wenn alle Gegner tot sind']], (v) => (r.werewolfWin = v)),
-        select('Seherin sieht', s.seerResult, [['faction', 'Werwolf ja/nein'], ['role', 'Genaue Rolle']], (v) => (s.seerResult = v)),
+        select('Seherin sieht', s.seerResult, [['role', 'Genaue Rolle'], ['faction', 'Werwolf ja/nein']], (v) => (s.seerResult = v)),
         h('label', { class: 'field' }, 'Diskussionszeit (Sekunden, 0 = ohne)', numberInput(s.discussion, 0, (n) => (s.discussion = n), 'Diskussionszeit')),
       ),
       h(

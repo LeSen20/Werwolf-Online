@@ -1,6 +1,6 @@
 # Grafik-Checkliste
 
-Stand: 4 von 47 Grafiken fertig, dazu 4 optionale. Alles ist Pixelgrafik: PNG in Originalgröße (1x), harte Kanten, Farben der Werwolf-Karte. Details stehen in [assets.md](assets.md).
+Stand: 5 von 47 Grafiken fertig, dazu 4 optionale. Alles ist Pixelgrafik: PNG in Originalgröße (1x), harte Kanten, Farben der Werwolf-Karte. Details stehen in [assets.md](assets.md).
 
 Das Spiel läuft auch ohne die offenen Grafiken. Bis dahin zeigt es Platzhalter.
 
@@ -9,9 +9,10 @@ Das Spiel läuft auch ohne die offenen Grafiken. Bis dahin zeigt es Platzhalter.
 - [x] `cards/werewolf.png`: Werwolf (animiert)
 - [x] `cards/villager.png`: Dorfbewohner (animiert)
 - [x] `cards/witch.png`: Hexe (animiert)
+- [x] `cards/seer.png`: Seherin (animiert)
 - [x] `cards/back.png`: Kartenrückseite
 
-## 1. Rollenkarten (21)
+## 1. Rollenkarten (20)
 
 Im Spiel sind das zurzeit Platzhalter aus dem Kartengenerator: gleicher Rahmen, gleiche Nachtszene, eigener Titel und Text. Du ersetzt nur das Motiv.
 
@@ -21,7 +22,6 @@ Im Spiel sind das zurzeit Platzhalter aus dem Kartengenerator: gleicher Rahmen, 
 
 Grundspiel:
 
-- [ ] `cards/seer.png`: Seherin
 - [ ] `cards/hunter.png`: Jäger
 - [ ] `cards/cupid.png`: Amor
 - [ ] `cards/thief.png`: Dieb
