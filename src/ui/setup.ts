@@ -14,10 +14,24 @@ import {
 } from '../engine';
 import { createTranslator, type TranslationSettings } from '../translation';
 import { panel } from './components';
-import { button, h } from './dom';
+import { button, h, type Child } from './dom';
 
 const STORAGE_KEY = 'werwolf.setup';
 const BASE_ROLE_IDS = ['villager', 'werewolf'];
+
+/** Gruppierung der Rollen wie in der Spielschachtel; neue Rollen landen unter "Weitere". */
+const EDITIONS: ReadonlyArray<readonly [string, readonly RoleId[]]> = [
+  ['Grundspiel', ['villager', 'werewolf', 'seer', 'witch', 'hunter', 'cupid', 'thief']],
+  ['Neumond', ['healer', 'elder', 'idiot', 'scapegoat', 'piper']],
+  ['Charaktere', ['sister', 'brother', 'wolfhound', 'wild-child', 'fox', 'bear-tamer', 'knight', 'judge', 'angel', 'urwolf', 'big-bad-wolf', 'white-werewolf']],
+];
+
+function byEdition<T extends { id: RoleId }>(roles: T[]): Array<[string, T[]]> {
+  const known = new Set(EDITIONS.flatMap(([, ids]) => ids));
+  const groups: Array<[string, T[]]> = EDITIONS.map(([title, ids]) => [title, ids.flatMap((id) => roles.filter((r) => r.id === id))]);
+  groups.push(['Weitere', roles.filter((r) => !known.has(r.id))]);
+  return groups.filter(([, list]) => list.length > 0);
+}
 
 interface SetupState {
   names: string[];
@@ -82,7 +96,10 @@ export class SetupScreen {
   /** Vom Generator vergebene, unveränderte Bot-Namen. */
   private readonly generated = new Set<string>();
   private summary: HTMLElement | null = null;
+  private status: HTMLElement | null = null;
   private startButton: HTMLButtonElement | null = null;
+  /** Aufgeklappte Abschnitte (bleiben beim Neuzeichnen erhalten). */
+  private readonly open = { rules: false, language: false };
 
   constructor(registry: Registry, onStart: (request: StartRequest) => void, rerender: () => void) {
     this.registry = registry;
@@ -171,10 +188,20 @@ export class SetupScreen {
     if (!this.state.bots.some((bot) => !bot)) issues.push('Mindestens ein Spieler muss ein Mensch sein.');
     const cards = Object.entries(config.roles)
       .filter(([, n]) => n > 0)
-      .map(([id, n]) => `${this.registry.hasRole(id) ? this.registry.getRole(id).name : id} x${n}`);
+      .map(([id, n]) => ({ name: this.registry.hasRole(id) ? this.registry.getRole(id).name : id, n }));
+    const total = cards.reduce((sum, card) => sum + card.n, 0);
     this.summary?.replaceChildren(
-      h('p', null, `Kartenstapel: ${cards.join(', ') || '-'}`),
-      issues.length > 0 ? h('ul', { class: 'issues' }, issues.map((issue) => h('li', null, issue))) : h('p', { class: 'ok' }, 'Konfiguration ist gültig.'),
+      h('p', { class: 'deck-title' }, `Kartenstapel (${total} Karten)`),
+      cards.length > 0
+        ? h('ul', { class: 'deck' }, cards.map((card) => h('li', { class: 'tag' }, card.n > 1 ? `${card.name} ×${card.n}` : card.name)))
+        : h('p', { class: 'hint' }, 'Noch keine Karten.'),
+      ...(issues.length > 0 ? [h('ul', { class: 'issues' }, issues.map((issue) => h('li', null, issue)))] : []),
+    );
+    const players = this.state.names.length;
+    this.status?.replaceChildren(
+      issues.length > 0
+        ? h('span', { class: 'start-issue' }, issues.length > 1 ? `${issues[0]} (+${issues.length - 1})` : issues[0])
+        : h('span', null, `${players} Spieler · ${total} Karten · bereit`),
     );
     if (this.startButton) this.startButton.disabled = issues.length > 0;
   }
@@ -203,12 +230,25 @@ export class SetupScreen {
           this.refresh();
         },
       });
-    const checkbox = (label: string, checked: boolean, onChange: (v: boolean) => void) =>
+    const checkbox = (label: string, checked: boolean, onChange: (v: boolean) => void, note?: string) =>
       h(
         'label',
         { class: 'check' },
         h('input', { type: 'checkbox', checked, onchange: (e: Event) => update(() => onChange((e.target as HTMLInputElement).checked))() }),
-        label,
+        h('span', null, label, note ? h('span', { class: 'check-note' }, ` ${note}`) : null),
+      );
+    const collapsible = (title: string, summary: string, key: keyof SetupScreen['open'], body: Child[]) =>
+      h(
+        'details',
+        {
+          class: 'panel collapsible',
+          open: this.open[key],
+          ontoggle: (e: Event) => {
+            this.open[key] = (e.target as HTMLDetailsElement).open;
+          },
+        },
+        h('summary', null, h('h2', null, title), h('span', { class: 'hint' }, summary)),
+        ...body,
       );
     const select = <T extends string>(label: string, value: T, options: Array<[T, string]>, onChange: (v: T) => void) =>
       h(
@@ -223,10 +263,11 @@ export class SetupScreen {
       );
 
     const humans = s.bots.filter((bot) => !bot).length;
+    const bots = s.names.length - humans;
     const playerSection = panel(
-      `Spieler (${s.names.length}, davon ${s.names.length - humans} Bots)`,
+      'Spieler',
       [
-        h('p', { class: 'hint' }, 'Die Reihenfolge der Liste ist die Sitzordnung im Kreis (wichtig für Fuchs, Bärenführer und Ritter).'),
+        h('p', { class: 'hint' }, `${s.names.length} Spieler: ${humans} ${humans === 1 ? 'Mensch' : 'Menschen'}, ${bots} ${bots === 1 ? 'Bot' : 'Bots'}. Die Reihenfolge ist die Sitzordnung im Kreis (wichtig für Fuchs, Bärenführer und Ritter).`),
         h(
           'ol',
           { class: 'name-list' },
@@ -312,6 +353,7 @@ export class SetupScreen {
           this.rerender();
         }, 'secondary', !s.bots.some(Boolean)),
       ],
+      { className: 'players' },
     );
 
     const specials = roles.filter((r) => !BASE_ROLE_IDS.includes(r.id));
@@ -320,23 +362,42 @@ export class SetupScreen {
         ? [
             h('label', { class: 'field' }, 'Anzahl Werwölfe', numberInput(s.werewolves, 0, (n) => (s.werewolves = n), 'Anzahl Werwölfe')),
             h('p', { class: 'hint' }, 'Sonderrollen (je eine Karte, der Rest wird mit Dorfbewohnern aufgefüllt):'),
-            h(
-              'div',
-              { class: 'check-grid' },
-              specials.map((role) =>
-                checkbox(`${role.name}${role.faction === 'neutral' ? ' (neutral)' : ''}`, s.specials.includes(role.id), (on) => {
-                  s.specials = on ? [...s.specials, role.id] : s.specials.filter((id) => id !== role.id);
-                }),
+            ...byEdition(specials).map(([title, list]) =>
+              h(
+                'fieldset',
+                { class: 'edition' },
+                h('legend', null, title),
+                h(
+                  'div',
+                  { class: 'check-grid' },
+                  list.map((role) =>
+                    checkbox(
+                      role.name,
+                      s.specials.includes(role.id),
+                      (on) => {
+                        s.specials = on ? [...s.specials, role.id] : s.specials.filter((id) => id !== role.id);
+                      },
+                      [role.faction === 'neutral' ? 'allein' : '', role.copies ? `${role.copies} Karten` : ''].filter(Boolean).join(', ') || undefined,
+                    ),
+                  ),
+                ),
               ),
             ),
           ]
         : [
             h('p', { class: 'hint' }, 'Anzahl je Rolle. Mit Dieb werden 2 Karten mehr als Spieler benötigt.'),
-            h(
-              'div',
-              { class: 'count-grid' },
-              roles.map((role) =>
-                h('label', { class: 'field' }, role.name, numberInput(s.counts[role.id] ?? 0, 0, (n) => (s.counts[role.id] = n), `Anzahl ${role.name}`)),
+            ...byEdition(roles).map(([title, list]) =>
+              h(
+                'fieldset',
+                { class: 'edition' },
+                h('legend', null, title),
+                h(
+                  'div',
+                  { class: 'count-grid' },
+                  list.map((role) =>
+                    h('label', { class: 'field' }, role.name, numberInput(s.counts[role.id] ?? 0, 0, (n) => (s.counts[role.id] = n), `Anzahl ${role.name}`)),
+                  ),
+                ),
               ),
             ),
           ];
@@ -354,7 +415,14 @@ export class SetupScreen {
     ]);
 
     const r = s.rules;
-    const rulesSection = panel('Regeln', [
+    const rulesSummary = () =>
+      [
+        s.captain ? 'mit Hauptmann' : 'ohne Hauptmann',
+        r.nightMode === 'pass' ? 'Nacht reihum' : 'Nacht nach Rollen',
+        s.seerResult === 'role' ? 'Seherin sieht Rolle' : 'Seherin: Werwolf ja/nein',
+        s.discussion > 0 ? `${s.discussion} s Diskussion` : 'Diskussion ohne Zeit',
+      ].join(' · ');
+    const rulesSection = collapsible('Regeln', rulesSummary(), 'rules', [
       h(
         'div',
         { class: 'rule-grid' },
@@ -378,10 +446,16 @@ export class SetupScreen {
         checkbox('Nachts bekommt jeder das Gerät (verrät niemanden)', s.rules.nightMode === 'pass', (v) => (s.rules.nightMode = v ? 'pass' : 'roles')),
       ),
     ]);
+    // Zusammenfassung im zugeklappten Kopf aktuell halten.
+    const refreshSummary = () => {
+      const hint = rulesSection.querySelector('summary .hint');
+      if (hint) hint.textContent = rulesSummary();
+    };
+    rulesSection.addEventListener('change', refreshSummary);
+    rulesSection.addEventListener('input', refreshSummary);
 
     const translator = createTranslator({ libreTranslateUrl: s.libreTranslateUrl });
-    const translationSection = panel('Sprachen und Übersetzer', [
-      h('p', null, `Aktiv: ${translator.name}.`),
+    const translationSection = collapsible('Sprachen', `Übersetzer: ${translator.name}`, 'language', [
       h(
         'p',
         { class: 'hint' },
@@ -405,6 +479,7 @@ export class SetupScreen {
       ),
     ]);
 
+    this.status = h('p', { class: 'start-status', 'aria-live': 'polite' });
     this.startButton = button('Spiel starten', () => {
       save(s, this.generated);
       this.onStart({
@@ -420,7 +495,7 @@ export class SetupScreen {
       rolesSection,
       rulesSection,
       translationSection,
-      h('div', { class: 'actions start' }, this.startButton),
+      h('div', { class: 'start-bar' }, this.status, this.startButton),
       h(
         'p',
         { class: 'credits' },

@@ -10,7 +10,7 @@ import { createDefaultRegistry } from '../roles';
 import { basicTranslator, createTranslator, detectLanguage, type Translator } from '../translation';
 import { ASSETS, assetUrl, playSound, type SoundKey } from './assets';
 import { setCardAnimationGroup } from './cardAnimation';
-import { chatLog, eventLog, icon, knowledge, panel, playerList, promptForm, roleCard, type Theme } from './components';
+import { chatLog, clearPromptSelections, eventLog, handoff, icon, knowledge, panel, playerList, progress, promptForm, roleCard, tallyBars, whoAmI, type TallyRow, type Theme } from './components';
 import type { DecisionPrompt, PlayerView } from '../engine';
 import { button, h, type Child } from './dom';
 import { SetupScreen, type StartRequest } from './setup';
@@ -44,11 +44,17 @@ interface NightPass {
   acted: boolean;
 }
 
+/** Eintrag einer Zwischenseite: Text (Art = Ereignistyp, z.B. 'death') oder Stimmenbalken. */
+type InterstitialItem = { text: string; kind: string } | { tally: TallyRow[]; abstentions: number };
+
 interface Interstitial {
   title: string;
-  lines: string[];
+  items: InterstitialItem[];
   buttonLabel: string;
 }
+
+/** Ereignisse, die auf Zwischenseiten als Todesnachricht hervorgehoben werden. */
+const DEATH_EVENTS = new Set(['death', 'lover-grief', 'vote-elimination', 'hunter-shot']);
 
 /** Öffentliche Ereignisse, die nach einer Abstimmung oder Todesentscheidung zusammengefasst werden. */
 const RESULT_EVENTS = new Set([
@@ -83,12 +89,17 @@ export class App {
   private awakeKey: string | null = null;
   private stepNotes: string[] = [];
   private voterReady: PlayerId | null = null;
+  /** Richter: Häkchen für die zweite Abstimmung (übersteht das Neuzeichnen). */
+  private secondVoteWish: PlayerId | null = null;
   private interstitial: Interstitial | null = null;
   private message: string | null = null;
   private logMode: 'off' | 'public' | 'debug' = 'off';
   private timer: { key: string; endsAt: number; handle: number } | null = null;
   private theme: Theme = 'setup';
+  private menuOpen = false;
   private nightPass: NightPass | null = null;
+  /** Töne, die während der Nachtrunde reihum anfallen; erst danach abspielen (sonst verrät der Zeitpunkt etwas). */
+  private deferredSounds: SoundKey[] = [];
   /** Letztes Ereignis, das ein Spieler in seinem Nachtzug gesehen hat (für "Neu für dich"). */
   private readonly seenEvents = new Map<PlayerId, number>();
   private readonly imageSizes = new Map<string, { width: number; height: number }>();
@@ -97,6 +108,18 @@ export class App {
     this.root = root;
     this.setup = new SetupScreen(this.registry, (request) => this.startGame(request), () => this.render());
     window.addEventListener('resize', () => this.applyBackground());
+    // Menü schließen bei Klick daneben oder mit Escape.
+    document.addEventListener('click', (event) => {
+      if (this.menuOpen && !(event.target instanceof Element && event.target.closest('.menu'))) this.closeMenu();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (this.menuOpen && event.key === 'Escape') this.closeMenu();
+    });
+  }
+
+  private closeMenu(): void {
+    this.menuOpen = false;
+    this.render();
   }
 
   // ---------------------------------------------------------------- Ablauf
@@ -150,6 +173,10 @@ export class App {
     this.message = null;
     this.interstitial = null;
     this.nightPass = null;
+    this.deferredSounds = [];
+    this.menuOpen = false;
+    this.secondVoteWish = null;
+    clearPromptSelections();
     this.seenEvents.clear();
     this.setup.renewBotNames();
     this.render();
@@ -189,7 +216,9 @@ export class App {
       return false;
     }
     this.message = null;
-    this.summarize(before, beforeKey, actors, result.events);
+    // Abbruch: direkt zum Spielende, ohne Zwischenseite.
+    if (command.type === 'ABORT') this.interstitial = null;
+    else this.summarize(before, beforeKey, actors, result.events);
     this.playEventSounds(result.events);
     return true;
   }
@@ -240,8 +269,24 @@ export class App {
   private playEventSounds(events: GameEvent[]): void {
     const types = new Set(events.filter((e) => e.visibility.kind === 'public').map((e) => e.type));
     const keys = SOUND_SEQUENCE.filter(([type]) => types.has(type)).map(([, key]) => key);
+    if (this.nightPass) {
+      for (const key of keys) if (!this.deferredSounds.includes(key)) this.deferredSounds.push(key);
+      return;
+    }
     if (keys.length === 0 && types.has('chat')) keys.push('chat');
+    this.playSounds(keys);
+  }
+
+  private playSounds(keys: SoundKey[]): void {
     keys.forEach((key, index) => setTimeout(() => playSound(key), index * SOUND_GAP_MS));
+  }
+
+  /** Nachtrunde reihum beenden und zurückgehaltene Töne abspielen. */
+  private endPass(): void {
+    this.nightPass = null;
+    const keys = SOUND_SEQUENCE.map(([, key]) => key).filter((key) => this.deferredSounds.includes(key));
+    this.deferredSounds = [];
+    this.playSounds(keys);
   }
 
   /** Zeigt nach einem abgeschlossenen Abschnitt eine Zwischenseite mit den Ergebnissen. */
@@ -263,7 +308,7 @@ export class App {
         const label = before.nightStep?.label ?? 'Nacht';
         this.interstitial = {
           title: label,
-          lines: [...this.stepNotes, `${label}: bitte wieder einschlafen und das Gerät zurücklegen.`],
+          items: [...this.stepNotes, `${label}: bitte wieder einschlafen und das Gerät zurücklegen.`].map((text) => ({ text, kind: 'note' })),
           buttonLabel: 'Augen sind geschlossen',
         };
         this.stepNotes = [];
@@ -271,15 +316,27 @@ export class App {
       return;
     }
     if ((beforeKey.startsWith('vote:') || beforeKey.startsWith('death:')) && afterKey !== beforeKey) {
-      const lines = events.filter((e) => e.visibility.kind === 'public' && RESULT_EVENTS.has(e.type)).map((e) => e.text);
-      this.interstitial = { title: beforeKey.startsWith('vote:') ? 'Ergebnis der Abstimmung' : 'Todesfolgen', lines, buttonLabel: 'Weiter' };
+      const nameOf = (id: string) => before.players.find((p) => p.id === id)?.name ?? id;
+      const items = events
+        .filter((e) => e.visibility.kind === 'public' && RESULT_EVENTS.has(e.type))
+        .map((e): InterstitialItem => {
+          const counts = e.data?.counts;
+          if (e.type !== 'vote-result' || !counts || typeof counts !== 'object') return { text: e.text, kind: e.type };
+          const tally = Object.entries(counts as Record<string, number>)
+            .map(([id, count]) => ({ name: nameOf(id), count: Number(count) }))
+            .sort((a, b) => b.count - a.count);
+          return { tally, abstentions: Number(e.data?.abstentions ?? 0) };
+        });
+      const title = !beforeKey.startsWith('vote:') ? 'Todesfolgen' : before.vote?.kind === 'election' ? 'Wahlergebnis' : 'Ergebnis';
+      this.interstitial = { title, items, buttonLabel: 'Weiter' };
     }
   }
 
   // ---------------------------------------------------------------- Zeitlimits
 
   private timerSeconds(view: PublicView): number {
-    if (this.interstitial) return 0;
+    // Während der Nachtrunde reihum läuft keine Uhr der Engine (z.B. Todesfolgen warten bis danach).
+    if (this.interstitial || this.nightPass) return 0;
     switch (view.phase) {
       case 'ROLE_DISTRIBUTION':
         return view.timers.roleReveal;
@@ -345,13 +402,14 @@ export class App {
     this.theme = this.themeFor(view);
     document.body.dataset.theme = this.theme;
     this.applyBackground();
+    const chat = view ? this.chatPanel(view) : null;
     this.root.replaceChildren(
       h(
         'div',
-        { class: 'app' },
+        { class: chat ? 'app with-chat' : 'app' },
         this.header(view),
         this.message ? h('div', { class: 'message', role: 'alert' }, this.message) : null,
-        h('main', null, this.screen(view), view ? this.chatPanel(view) : null),
+        h('main', null, this.screen(view), chat),
         this.logPanel(view),
       ),
     );
@@ -369,7 +427,7 @@ export class App {
 
   /** Tages-Chat für Menschen; Bots schreiben über den BotController mit. */
   private chatPanel(view: PublicView): HTMLElement | null {
-    if (!['DAY_ANNOUNCEMENT', 'DAY_DISCUSSION', 'DAY_VOTING'].includes(view.phase) || this.interstitial) return null;
+    if (!['DAY_ANNOUNCEMENT', 'DAY_DISCUSSION', 'DAY_VOTING'].includes(view.phase) || this.interstitial || this.nightPass) return null;
     const humans = view.players.filter((p) => p.alive && !this.isBot(p.id));
     if (!this.chatAs || !humans.some((p) => p.id === this.chatAs)) this.chatAs = humans[0]?.id ?? null;
     const lines = view.events
@@ -458,14 +516,14 @@ export class App {
 
   private themeFor(view: PublicView | null): Theme {
     if (!view) return 'setup';
+    // Nachtrunde reihum: Die Engine kann schon beim Tag sein, das darf man nicht sehen.
+    if (this.nightPass && view.phase !== 'GAME_OVER') return 'night';
     if (view.phase === 'GAME_OVER') return 'gameOver';
     if (view.phase === 'ROLE_DISTRIBUTION') return 'night';
     return view.time === 'day' ? 'day' : 'night';
   }
 
   private header(view: PublicView | null): HTMLElement {
-    const nextLog = { off: 'public', public: DEBUG ? 'debug' : 'off', debug: 'off' } as const;
-    const logLabel = { off: 'Protokoll', public: DEBUG ? 'Debug-Protokoll' : 'Protokoll aus', debug: 'Protokoll aus' };
     return h(
       'header',
       { class: 'topbar' },
@@ -473,21 +531,42 @@ export class App {
         'div',
         { class: 'brand' },
         ASSETS.logo ? h('img', { class: 'logo', src: assetUrl(ASSETS.logo), alt: 'Werwolf' }) : h('span', { class: 'logo-text' }, 'Werwolf'),
-        view ? h('span', { class: 'phase' }, `${view.phaseLabel}${view.round > 0 ? ` - Runde ${view.round}` : ''}`) : null,
+        view ? h('span', { class: 'phase' }, this.nightPass && view.phase !== 'GAME_OVER' ? `Nacht · Runde ${this.nightPass.round}` : `${view.phaseLabel}${view.round > 0 ? ` · Runde ${view.round}` : ''}`) : null,
       ),
       h('span', { class: 'spacer' }),
-      view
-        ? button(logLabel[this.logMode], () => {
-            this.logMode = nextLog[this.logMode];
-            this.render();
-          }, 'small secondary')
-        : null,
-      view && view.phase !== 'GAME_OVER'
-        ? button('Abbrechen', () => {
-            if (window.confirm('Partie wirklich abbrechen?')) this.dispatch({ type: 'ABORT', reason: 'Vom Erzähler abgebrochen.' });
-          }, 'small danger')
-        : null,
+      view ? this.menu(view) : null,
     );
+  }
+
+  /** Menü statt einzelner Knöpfe: spart Platz und schützt vor versehentlichem Abbrechen. */
+  private menu(view: PublicView): HTMLElement {
+    const toggle = button('Menü', () => {
+      this.menuOpen = !this.menuOpen;
+      this.render();
+    }, 'small secondary');
+    toggle.setAttribute('aria-expanded', String(this.menuOpen));
+    toggle.setAttribute('aria-haspopup', 'menu');
+    const setLog = (mode: 'off' | 'public' | 'debug') => () => {
+      this.logMode = mode;
+      this.closeMenu();
+    };
+    const item = (label: string, onclick: () => void, variant = 'secondary') => {
+      const element = button(label, onclick, variant);
+      element.setAttribute('role', 'menuitem');
+      return element;
+    };
+    const items = [
+      this.logMode === 'public' ? item('Protokoll ausblenden', setLog('off')) : item('Protokoll anzeigen', setLog('public')),
+      DEBUG ? (this.logMode === 'debug' ? item('Debug-Protokoll ausblenden', setLog('off')) : item('Debug-Protokoll (geheim)', setLog('debug'))) : null,
+      view.phase !== 'GAME_OVER'
+        ? item('Partie abbrechen', () => {
+            this.menuOpen = false;
+            if (window.confirm('Partie wirklich abbrechen?')) this.dispatch({ type: 'ABORT', reason: 'Vom Erzähler abgebrochen.' });
+            else this.render();
+          }, 'danger')
+        : item('Neue Partie', () => this.newGame()),
+    ];
+    return h('div', { class: 'menu' }, toggle, this.menuOpen ? h('div', { class: 'menu-items', role: 'menu' }, ...items) : null);
   }
 
   private logPanel(view: PublicView | null): HTMLElement | null {
@@ -501,13 +580,19 @@ export class App {
     if (!this.game || !view) return this.setup.render();
     if (this.nightPass && !this.interstitial) return this.passScreen(view);
     if (this.interstitial) {
-      const { title, lines, buttonLabel } = this.interstitial;
-      return panel(title, lines.map((line) => h('p', { class: 'narration' }, line)), [
-        button(buttonLabel, () => {
-          this.interstitial = null;
-          this.render();
-        }),
-      ]);
+      const { title, items, buttonLabel } = this.interstitial;
+      return panel(
+        title,
+        items.map((item) =>
+          'tally' in item ? tallyBars(item.tally, item.abstentions) : h('p', { class: DEATH_EVENTS.has(item.kind) ? 'narration death-line' : 'narration' }, item.text),
+        ),
+        [
+          button(buttonLabel, () => {
+            this.interstitial = null;
+            this.render();
+          }),
+        ],
+      );
     }
     switch (view.phase) {
       case 'ROLE_DISTRIBUTION':
@@ -523,11 +608,11 @@ export class App {
         return this.announcementScreen(view);
       case 'DAY_DISCUSSION':
         return panel(
-          `Tag ${view.round}: Diskussion`,
+          `Tag ${view.round}`,
           [
-            h('p', null, 'Diskutiert, wer ein Werwolf sein könnte. Wer etwas weiß, darf es teilen - oder lügen.'),
             h('p', { class: 'timer', id: 'timer' }),
-            playerList(view.players),
+            h('p', null, 'Diskutiert, wer ein Werwolf sein könnte. Wer etwas weiß, darf es teilen - oder lügen.'),
+            this.players(view),
           ],
           [button('Zur Abstimmung', () => this.dispatch({ type: 'ADVANCE' }))],
         );
@@ -538,6 +623,11 @@ export class App {
       default:
         return panel('Unerwarteter Zustand', [h('p', null, view.phaseLabel)]);
     }
+  }
+
+  /** Spielerliste mit denselben Avatarfarben wie im Chat. */
+  private players(view: PublicView): HTMLElement {
+    return playerList(view.players, (id) => this.bots?.persona(id)?.id ?? 'human');
   }
 
   /** Todesfolgen in der Nacht: Alle wachen auf und erfahren die bisherigen Toten. */
@@ -556,27 +646,27 @@ export class App {
     // Bots kennen ihre Karte bereits, das Gerät geht nur an Menschen.
     const players = view.players.filter((p) => !this.isBot(p.id));
     if (this.revealIndex >= players.length) {
-      return panel('Alle kennen ihre Rolle', [h('p', null, 'Legt das Gerät in die Mitte. Gleich beginnt die erste Nacht.')], [
+      return panel('Alle bereit', [h('p', { class: 'narration' }, 'Alle kennen ihre Rolle. Legt das Gerät in die Mitte, gleich beginnt die erste Nacht.')], [
         button('Erste Nacht beginnen', () => this.dispatch({ type: 'ADVANCE' })),
       ]);
     }
     const current = players[this.revealIndex];
     if (!this.revealOpen) {
-      return panel(
-        `Gib das Gerät an ${current.name}`,
-        [roleCard(null), h('p', null, 'Nur diese Person darf jetzt auf den Bildschirm schauen.')],
-        [
-          button(`Ich bin ${current.name}`, () => {
-            this.revealOpen = true;
-            this.render();
-          }),
-        ],
-      );
+      return handoff({
+        title: players.length > 1 ? `Rollen ${this.revealIndex + 1} von ${players.length}` : 'Deine Rolle',
+        name: current.name,
+        note: 'Nur diese Person darf jetzt auf den Bildschirm schauen.',
+        showBack: true,
+        onReady: () => {
+          this.revealOpen = true;
+          this.render();
+        },
+      });
     }
     const own = game.viewFor(current.id);
     return panel(
       `${current.name}, deine Rolle`,
-      [roleCard(own.self.role), h('p', null, own.self.role?.description ?? ''), knowledge(own)],
+      [roleCard(own.self.role), h('p', { class: 'role-text' }, own.self.role?.description ?? ''), knowledge(own)],
       [
         button('Karte verdecken und weitergeben', () => {
           this.revealOpen = false;
@@ -668,7 +758,7 @@ export class App {
     const pass = this.nightPass!;
     const game = this.game!;
     if (game.phase === 'GAME_OVER') {
-      this.nightPass = null;
+      this.endPass();
       return this.screen(view);
     }
     if (pass.index >= pass.order.length) return this.passEnd(view);
@@ -676,24 +766,31 @@ export class App {
     const own = game.viewFor(playerId);
     const title = `Nacht ${pass.round}`;
     if (pass.stage === 'cover') {
-      return panel(title, [h('p', { class: 'narration' }, `Gib das Gerät an ${own.self.name}.`), h('p', null, 'Alle anderen halten die Augen geschlossen.')], [
-        button(`Ich bin ${own.self.name}`, () => {
+      return handoff({
+        title: pass.pass > 1 ? `${title} · ${pass.pass}. Durchgang` : title,
+        name: own.self.name,
+        note: pass.pass > 1 ? 'Alle anderen halten die Augen geschlossen. Im zweiten Durchgang sind Rollen dran, die auf andere warten.' : 'Alle anderen halten die Augen geschlossen.',
+        showBack: true,
+        onReady: () => {
           pass.stage = 'turn';
           this.render();
-        }),
-      ]);
+        },
+      });
     }
-    const header = h('h3', null, `${own.self.name}${own.self.role ? ` (${own.self.role.name})` : ''}`);
+    const header = whoAmI(own);
     const open = game.phase === 'NIGHT_ACTIONS' ? this.openPrompts(own) : [];
     if (pass.stage === 'turn' && open.length > 0) {
       return panel(title, [
         header,
-        knowledge(own),
         ...open.map((prompt) =>
-          promptForm(prompt, (answer) => {
-            pass.acted = true;
-            this.dispatch({ type: 'USE_ABILITY', playerId, abilityId: prompt.abilityId, ...answer });
-          }),
+          promptForm(
+            prompt,
+            (answer) => {
+              pass.acted = true;
+              this.dispatch({ type: 'USE_ABILITY', playerId, abilityId: prompt.abilityId, ...answer });
+            },
+            `night:${pass.round}:${playerId}:${prompt.abilityId}`,
+          ),
         ),
       ]);
     }
@@ -715,16 +812,19 @@ export class App {
       };
       return panel(title, [
         header,
-        knowledge(own),
-        promptForm(decoy, () => {
-          pass.acted = true;
-          pass.stage = 'done';
-          this.render();
-        }),
+        promptForm(
+          decoy,
+          () => {
+            pass.acted = true;
+            pass.stage = 'done';
+            this.render();
+          },
+          `decoy:${pass.round}:${pass.pass}:${playerId}`,
+        ),
       ]);
     }
     const notes = this.newNotes(own, pass.round);
-    return panel(title, [header, ...notes.map((line) => h('p', { class: 'narration' }, line)), notes.length === 0 ? h('p', null, 'Nichts Neues für dich.') : null], [
+    return panel(title, [header, ...notes.map((line) => h('p', { class: 'note' }, line)), notes.length === 0 ? h('p', { class: 'hint' }, 'Nichts Neues für dich.') : null], [
       button('Augen schließen und Gerät weitergeben', () => {
         this.seenEvents.set(playerId, Math.max(-1, ...own.events.map((e) => e.id)));
         pass.index += 1;
@@ -739,7 +839,7 @@ export class App {
   private passEnd(view: PublicView): Child {
     const pass = this.nightPass!;
     const game = this.game!;
-    const waiting = panel(`Nacht ${pass.round}`, [h('p', { class: 'narration' }, 'Die Nacht ist noch nicht vorbei ...'), h('p', null, 'Alle halten die Augen geschlossen.')]);
+    const waiting = panel(`Nacht ${pass.round}`, [h('p', { class: 'narration' }, 'Die Nacht ist noch nicht vorbei', h('span', { class: 'dots', 'aria-hidden': 'true' })), h('p', null, 'Alle halten die Augen geschlossen.')]);
     const botsBusy = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => this.isBot(p.playerId));
     const humansOpen = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => !this.isBot(p.playerId));
     if (botsBusy) return waiting;
@@ -748,7 +848,7 @@ export class App {
       this.nightPass!.round = pass.round;
       return this.passScreen(view);
     }
-    this.nightPass = null;
+    this.endPass();
     return h('div', null, this.screen(view));
   }
 
@@ -782,8 +882,10 @@ export class App {
           { class: 'actor' },
           h('h3', null, `Gemeinsam: ${members.map(nameOf).join(', ')}`),
           ...suggestions.map((line) => h('p', { class: 'info' }, line)),
-          promptForm({ ...prompt, group: null }, (answer) =>
-            this.dispatch(...members.map((playerId): Command => ({ type: 'USE_ABILITY', playerId, abilityId, ...answer }))),
+          promptForm(
+            { ...prompt, group: null },
+            (answer) => this.dispatch(...members.map((playerId): Command => ({ type: 'USE_ABILITY', playerId, abilityId, ...answer }))),
+            `group:${game.publicView().round}:${abilityId}`,
           ),
         ),
       );
@@ -800,24 +902,27 @@ export class App {
         h(
           'section',
           { class: 'actor' },
-          h('h3', null, `${own.self.name}${own.self.role ? ` (${own.self.role.name})` : ''}`),
-          knowledge(own),
+          whoAmI(own),
           own.pending
             .filter((prompt) => !groups.has(prompt.abilityId))
-            .map((prompt) => promptForm(prompt, (answer) => this.dispatch({ type: 'USE_ABILITY', playerId, abilityId: prompt.abilityId, ...answer }))),
+            .map((prompt) =>
+              promptForm(prompt, (answer) => this.dispatch({ type: 'USE_ABILITY', playerId, abilityId: prompt.abilityId, ...answer }), `decide:${game.publicView().round}:${playerId}:${prompt.abilityId}`),
+            ),
         ),
       );
     }
+    const humansDeciding = pending.some((p) => !this.isBot(p.playerId));
     return panel(
       title,
       [...intro.map((line) => h('p', { class: 'narration' }, line)), h('p', { class: 'timer', id: 'timer' }), ...sections],
-      [button('Zeit abgelaufen: Ersatzregel anwenden', () => this.dispatch({ type: 'TIMEOUT' }), 'secondary')],
+      [],
+      { footer: humansDeciding ? [button('Zeit abgelaufen: Ersatzregel anwenden', () => this.dispatch({ type: 'TIMEOUT' }), 'small secondary')] : [] },
     );
   }
 
   private announcementScreen(view: PublicView): Child {
     const dayStart = [...view.events].reverse().find((e) => e.type === 'day-start');
-    return panel(`Tag ${view.round}`, [h('p', { class: 'narration' }, dayStart?.text ?? ''), playerList(view.players)], [
+    return panel(`Tag ${view.round}`, [h('p', { class: 'narration' }, dayStart?.text ?? ''), this.players(view)], [
       button('Diskussion beginnen', () => this.dispatch({ type: 'ADVANCE' })),
     ]);
   }
@@ -827,28 +932,47 @@ export class App {
     const vote = view.vote!;
     const election = vote.kind === 'election';
     const title = election ? (vote.round > 1 ? 'Stichwahl um das Hauptmannsamt' : 'Hauptmannswahl') : vote.round > 1 ? 'Stichwahl' : 'Abstimmung';
-    const close = button('Abstimmung beenden (fehlende Stimmen = Enthaltung)', () => this.dispatch({ type: 'ADVANCE' }), 'secondary');
+    const missing = vote.voters.length - vote.voted.length;
+    const close = (label: string, variant: string) =>
+      button(label, () => {
+        if (missing > 0 && !window.confirm(`Es fehlen noch ${missing} ${missing === 1 ? 'Stimme' : 'Stimmen'}. Fehlende Stimmen zählen als Enthaltung. Trotzdem beenden?`)) return;
+        this.dispatch({ type: 'ADVANCE' });
+      }, variant);
     // Reihum stimmen nur Menschen ab; Bots stimmen selbst (geheim).
     const next = vote.voters.find((v) => !vote.voted.includes(v.id) && !this.isBot(v.id));
-    const status = h('p', null, `Abgestimmt: ${vote.voted.length} von ${vote.voters.length}. Zur Wahl: ${vote.candidates.map((c) => c.name).join(', ')}.`);
+    const alive = view.players.filter((p) => p.alive).length;
+    const status = [
+      progress(vote.voted.length, vote.voters.length, 'Stimmen'),
+      // Zur Wahl nur nennen, wenn nicht ohnehin alle wählbar sind (z.B. Stichwahl).
+      vote.candidates.length < alive ? h('p', { class: 'hint' }, `Zur Wahl: ${vote.candidates.map((c) => c.name).join(', ')}`) : null,
+    ];
     if (!next) {
-      const waiting = vote.voted.length < vote.voters.length;
-      return panel(title, [h('p', null, waiting ? 'Die übrigen Stimmen werden abgegeben ...' : 'Alle haben abgestimmt.'), status], [close]);
+      const waiting = missing > 0;
+      return panel(
+        title,
+        [h('p', { class: 'narration' }, waiting ? 'Die übrigen Stimmen werden abgegeben' : 'Alle haben abgestimmt.', waiting ? h('span', { class: 'dots', 'aria-hidden': 'true' }) : null), ...status],
+        waiting ? [] : [close('Abstimmung auswerten', '')],
+        { footer: waiting ? [close('Abstimmung vorzeitig beenden', 'small secondary')] : [] },
+      );
     }
     if (this.voterReady !== next.id) {
-      return panel(title, [h('p', { class: 'narration' }, `Gib das Gerät an ${next.name}. Die Stimme ist geheim.`), status, h('p', { class: 'timer', id: 'timer' })], [
-        button(`Ich bin ${next.name}`, () => {
+      return handoff({
+        title,
+        name: next.name,
+        note: 'Die Stimme ist geheim.',
+        extra: [...status, h('p', { class: 'timer', id: 'timer' })],
+        footer: [close('Abstimmung vorzeitig beenden', 'small secondary')],
+        onReady: () => {
           this.voterReady = next.id;
           this.render();
-        }),
-        close,
-      ]);
+        },
+      });
     }
     const own = game.viewFor(next.id).vote!;
     const prompt = {
       abilityId: 'vote',
       abilityName: 'Stimme',
-      title: election ? `${next.name}: Wer soll Hauptmann werden?` : `${next.name}: Wen soll das Dorf verbannen?`,
+      title: election ? 'Wer soll Hauptmann werden?' : 'Wen soll das Dorf verbannen?',
       info: [],
       kind: 'players' as const,
       min: 1,
@@ -859,37 +983,60 @@ export class App {
       group: null,
     };
     // Stotternder Richter: heimlich eine zweite Abstimmung verlangen (nur auf seinem eigenen Zug sichtbar).
-    const secondVote = own.canRequestSecondVote ? h('input', { type: 'checkbox' }) : null;
+    const secondVote = own.canRequestSecondVote
+      ? h('input', {
+          type: 'checkbox',
+          checked: this.secondVoteWish === next.id,
+          onchange: (e: Event) => {
+            this.secondVoteWish = (e.target as HTMLInputElement).checked ? next.id : null;
+          },
+        })
+      : null;
     return panel(title, [
-      promptForm(prompt, (answer) => {
-        this.voterReady = null;
-        this.dispatch({
-          type: 'VOTE',
-          playerId: next.id,
-          targetId: answer.skip ? null : (answer.targets?.[0] ?? null),
-          ...(secondVote?.checked ? { requestSecondVote: true } : {}),
-        });
-      }),
+      h('p', { class: 'voter' }, `Geheime Stimme von ${next.name}`),
+      promptForm(
+        prompt,
+        (answer) => {
+          this.voterReady = null;
+          const second = this.secondVoteWish === next.id && own.canRequestSecondVote;
+          this.secondVoteWish = null;
+          this.dispatch({
+            type: 'VOTE',
+            playerId: next.id,
+            targetId: answer.skip ? null : (answer.targets?.[0] ?? null),
+            ...(second ? { requestSecondVote: true } : {}),
+          });
+        },
+        `vote:${view.round}:${vote.kind}:${vote.round}:${next.id}`,
+      ),
       secondVote ? h('label', { class: 'check' }, secondVote, 'Als Richter heute eine zweite Abstimmung verlangen (nur einmal pro Partie)') : null,
     ]);
   }
 
   private gameOverScreen(view: PublicView): Child {
     const result = view.result!;
-    const summary = view.events.find((e) => e.type === 'game-over')?.text ?? '';
+    const event = view.events.find((e) => e.type === 'game-over');
+    const teamName = typeof event?.data?.teamName === 'string' ? event.data.teamName : null;
+    const banner = result.aborted
+      ? [h('p', { class: 'narration' }, result.reason || 'Die Partie wurde abgebrochen.')]
+      : [
+          h('div', { class: 'winner-banner' }, h('p', { class: 'winner-label' }, teamName ? 'Sieger' : 'Ergebnis'), h('p', { class: 'winner-name' }, teamName ?? 'Unentschieden')),
+          h('p', { class: 'narration' }, result.reason),
+        ];
     return panel(
       result.aborted ? 'Partie abgebrochen' : 'Spielende',
       [
-        h('p', { class: 'narration' }, summary),
+        ...banner,
         h(
           'div',
           { class: 'card-row' },
           view.players.map((p) =>
             h(
               'div',
-              { class: `final${result.winners.includes(p.id) ? ' winner' : ''}` },
+              { class: `final${result.winners.includes(p.id) ? ' winner' : ''}${p.alive ? '' : ' is-dead'}` },
+              result.winners.includes(p.id) ? h('span', { class: 'tag tag-badge ribbon' }, 'Sieger') : null,
               roleCard(p.role, 'small'),
-              h('span', null, p.name, this.isBot(p.id) ? [' ', icon('bot', '(Bot)')] : null),
+              h('span', { class: 'final-name' }, p.name, this.isBot(p.id) ? [' ', icon('bot', '(Bot)')] : null),
               h('span', { class: 'hint' }, p.alive ? 'lebt' : `tot (${p.deathCause ?? '?'})`),
             ),
           ),

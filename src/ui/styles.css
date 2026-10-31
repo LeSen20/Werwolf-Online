@@ -101,24 +101,25 @@ body::before {
 .topbar {
   color: var(--page-text);
   display: flex;
-  justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  padding: 12px 0;
-  flex-wrap: wrap;
+  padding: 12px 0 4px;
 }
 
 .brand {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 /* Righteous für Logo und Überschriften, immer in ganzzahligen Vielfachen von 8 px. Fließtext,
    Knöpfe und Chat bleiben in der Pixelify Sans: Righteous wäre dafür bei 8 px zu klein, bei 16 px zu groß. */
 .logo-text,
 .panel h2,
-.actor h3,
-.prompt h3 {
+.handoff-name,
+.winner-name {
   font-family: var(--font-display);
   font-weight: 400;
   font-size-adjust: 0.625;
@@ -128,8 +129,7 @@ body::before {
 
 /* Rote Initiale wie im Kartentitel. */
 .panel h2::first-letter,
-.actor h3::first-letter,
-.prompt h3::first-letter {
+.handoff-name::first-letter {
   color: var(--accent);
 }
 
@@ -150,9 +150,41 @@ body::before {
   image-rendering: pixelated;
 }
 
+/* Phase als Schild auf dunklem Grund: auf Holz und Nacht gleich gut lesbar. */
 .phase {
-  color: var(--page-muted);
-  font-size: 0.85rem;
+  padding: 1px 8px;
+  font-size: 0.8rem;
+  color: var(--surface);
+  background: rgba(7, 7, 12, 0.55);
+  border: 1px solid var(--gold);
+}
+
+/* Menü in der Kopfzeile. */
+.menu {
+  position: relative;
+  flex: none;
+}
+
+.menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  min-width: 230px;
+  padding: 12px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+  box-shadow:
+    inset 0 0 0 2px var(--surface),
+    inset 0 0 0 4px var(--gold),
+    4px 4px 0 var(--shadow);
+}
+
+.menu-items button {
+  width: 100%;
+  text-align: left;
 }
 
 .spacer {
@@ -183,10 +215,13 @@ body::before {
   margin-top: 12px;
 }
 
+/* Fragen in der Fließtextschrift: lange Sätze bleiben lesbar. */
 .actor h3,
 .prompt h3 {
-  margin: 4px 0 8px;
-  font-size: 16px;
+  margin: 8px 0 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .actions {
@@ -196,8 +231,22 @@ body::before {
   margin-top: 14px;
 }
 
-.start {
+/* Auf schmalen Bildschirmen füllen Knöpfe die Zeile: große Tippflächen, ruhiges Bild. */
+@media (max-width: 560px) {
+  .actions > button {
+    flex: 1 1 140px;
+  }
+}
+
+/* Erzähler-Knöpfe (selten gebraucht) abgesetzt unter den Hauptaktionen. */
+.narrator {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 2px dotted var(--border);
 }
 
 /* Knöpfe wie in alten Spielen: Umriss, harter Schatten, beim Drücken eingedrückt. */
@@ -249,7 +298,10 @@ button.danger {
 }
 
 button:disabled {
-  opacity: 0.45;
+  background: var(--surface-2);
+  color: var(--muted);
+  border-color: var(--border);
+  border-style: dashed;
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -295,13 +347,19 @@ input[type='checkbox'] {
 .check {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .check input {
   flex: none;
   width: 18px;
   height: 18px;
+  margin: 2px 0 0;
+}
+
+.check-note {
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .segmented {
@@ -355,38 +413,81 @@ input[type='checkbox'] {
 }
 
 .timer {
+  display: inline-block;
   font-variant-numeric: tabular-nums;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   margin: 4px 0;
+  padding: 2px 10px;
+  background: var(--field);
+  border: 2px solid var(--line);
+  box-shadow: 2px 2px 0 var(--shadow);
 }
 
 .timer:empty {
   display: none;
 }
 
-.info,
-.group-status {
+.info {
   color: var(--muted);
   margin: 4px 0;
 }
 
-.player-list,
-.knowledge {
+.player-list {
   list-style: none;
   padding: 0;
   display: grid;
   gap: 6px;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
 
 .player {
-  padding: 6px 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 8px;
   border: 2px solid var(--border);
+}
+
+.player-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.player-name {
+  overflow-wrap: anywhere;
+}
+
+.player-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.player-tags:empty {
+  display: none;
+}
+
+.player-tags .tag {
+  margin-left: 0;
 }
 
 .player.dead .player-name {
   text-decoration: line-through;
   opacity: 0.6;
+}
+
+.player.dead .avatar {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* Schmale Bildschirme: Platz für den Namen statt Avatar (im Chat bleibt er). */
+@media (max-width: 560px) {
+  .player .avatar {
+    display: none;
+  }
 }
 
 .tag {
@@ -576,8 +677,32 @@ input[type='checkbox'] {
   padding: 6px;
 }
 
+.final {
+  position: relative;
+  border: 2px solid transparent;
+}
+
 .final.winner {
-  outline: 2px dashed var(--accent);
+  border-color: var(--gold);
+  background: rgba(168, 139, 69, 0.2);
+}
+
+.final .ribbon {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  margin: 0;
+}
+
+.final.is-dead .card {
+  filter: grayscale(0.75) brightness(0.9);
+}
+
+.final-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .log ol {
@@ -608,13 +733,17 @@ input[type='checkbox'] {
   font-size: 0.85rem;
 }
 
+/* Chatverlauf als eingelassenes Feld: man sieht, dass er scrollt. */
 .chat-log {
   max-height: 340px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 4px 0;
+  padding: 8px;
+  background: var(--field);
+  border: 2px solid var(--line);
+  box-shadow: inset 2px 2px 0 rgba(21, 14, 11, 0.15);
 }
 
 .chat-line {
@@ -647,8 +776,15 @@ input[type='checkbox'] {
 
 .chat-input {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .chat-input select {
+    flex: 1 1 100%;
+  }
 }
 
 .chat-input input {
@@ -678,4 +814,369 @@ input[type='checkbox'] {
   font-size: 0.75rem;
   color: var(--page-muted);
   text-align: center;
+}
+
+/* ---- Gerät weitergeben: großer Name, Rückseite, ein Knopf ---- */
+.handoff {
+  text-align: center;
+}
+
+.handoff-label {
+  margin: 0;
+  color: var(--muted);
+}
+
+.handoff-name {
+  margin: 0 0 8px;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
+.handoff-note {
+  color: var(--muted);
+}
+
+.handoff .card-large {
+  width: 192px;
+  padding: 0;
+}
+
+/* Kleine Handys: Rückseite halb so groß, damit der Knopf ohne Scrollen sichtbar bleibt. */
+@media (max-height: 740px) {
+  .handoff .card-large {
+    width: 96px;
+  }
+
+  .handoff .card-art img {
+    image-rendering: auto;
+  }
+}
+
+.handoff .actions {
+  justify-content: center;
+}
+
+.handoff .actions > button {
+  flex: 1 1 100%;
+  max-width: 420px;
+}
+
+.handoff .progress,
+.handoff .hint {
+  text-align: left;
+}
+
+/* ---- Eigener Zug: kleine Karte, Name, Wissen ---- */
+.whoami {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 2px dashed var(--border);
+}
+
+.whoami .card-small {
+  margin: 0;
+}
+
+/* Der Rollenname steht schon daneben. */
+.whoami .card-name {
+  display: none;
+}
+
+.whoami-name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.whoami .hint {
+  margin: 2px 0 6px;
+}
+
+.knowledge {
+  margin: 8px 0;
+}
+
+.knowledge-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.knowledge ul,
+.group-status,
+.deck {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.knowledge li {
+  padding: 2px 8px;
+  background: var(--field);
+  border: 2px solid var(--line);
+}
+
+.group-status li {
+  padding: 1px 8px;
+  font-size: 0.85rem;
+  background: var(--chip);
+  border: 1px solid var(--border);
+}
+
+/* Geheime Ergebnisse (z.B. Seherin) deutlich hervorheben. */
+.note {
+  margin: 10px 0;
+  padding: 8px 12px;
+  font-size: 1.1rem;
+  background: var(--field);
+  border: 2px solid var(--line);
+  border-left: 6px solid var(--gold);
+}
+
+.death-line {
+  padding-left: 10px;
+  border-left: 6px solid var(--danger);
+}
+
+.role-text {
+  max-width: 36em;
+  margin: 8px auto;
+  text-align: center;
+}
+
+.voter {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ---- Balken: Stimmen und Fortschritt ---- */
+.progress {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.progress-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.progress-track,
+.tally-track {
+  display: block;
+  height: 14px;
+  background: var(--field);
+  border: 2px solid var(--line);
+}
+
+.progress-fill,
+.tally-fill {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+.tally {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.tally-row {
+  display: grid;
+  grid-template-columns: minmax(0, 9em) minmax(0, 1fr) 2em;
+  gap: 8px;
+  align-items: center;
+}
+
+.tally-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tally-row .tally-fill {
+  background: var(--village);
+}
+
+.tally-row.leader .tally-fill {
+  background: var(--accent);
+}
+
+.tally-row.abstain {
+  color: var(--muted);
+}
+
+.tally-row.abstain .tally-fill {
+  background: var(--border);
+}
+
+.tally-count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wartepunkte in Pixelschritten. */
+.dots::after {
+  content: '...';
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: dots 1.2s steps(4, jump-none) infinite;
+}
+
+@keyframes dots {
+  to {
+    width: 1.1em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots::after {
+    width: auto;
+    animation: none;
+  }
+}
+
+/* ---- Spielende ---- */
+.winner-banner {
+  margin: 4px 0 8px;
+  padding: 10px;
+  text-align: center;
+  color: var(--surface);
+  background: var(--line);
+  border: 2px solid var(--line);
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.winner-label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--gold);
+}
+
+.winner-name {
+  margin: 2px 0 0;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Vorbereitung ---- */
+.players .actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.edition {
+  margin: 10px 0;
+  padding: 4px 10px 8px;
+  border: 2px solid var(--border);
+}
+
+.edition legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.deck-title {
+  margin: 12px 0 0;
+  font-weight: 700;
+}
+
+.deck .tag {
+  margin-left: 0;
+}
+
+/* Aufklappbare Abschnitte: Kopf wie eine Panel-Überschrift mit Zusammenfassung. */
+.collapsible > summary {
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible > summary h2 {
+  margin: 0;
+}
+
+.collapsible > summary h2::after {
+  content: ' +';
+  color: var(--muted);
+}
+
+.collapsible[open] > summary {
+  margin-bottom: 12px;
+}
+
+.collapsible[open] > summary h2::after {
+  content: ' -';
+}
+
+/* Startleiste bleibt beim Scrollen unten sichtbar. */
+.start-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px -16px 0;
+  padding: 10px 16px;
+  background: var(--line);
+  border-top: 2px solid var(--gold);
+}
+
+.start-status {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--page-text);
+}
+
+.start-issue {
+  color: #f4b49c;
+}
+
+.start-bar button {
+  flex: none;
+}
+
+/* ---- Breite Bildschirme: Chat neben dem Spiel ---- */
+@media (min-width: 1040px) {
+  .app.with-chat {
+    max-width: 1180px;
+  }
+
+  .app.with-chat main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .app.with-chat main > .panel:last-child {
+    position: sticky;
+    top: 12px;
+  }
+
+  .app.with-chat .chat-log {
+    min-height: 320px;
+    max-height: calc(100vh - 230px);
+  }
 }

@@ -93,7 +93,7 @@ function finishGame(ctx: EngineContext, result: GameResult): void {
     ctx.publicEvent('game-over', `Die Partie wurde abgebrochen. ${result.reason}`.trim(), { result });
   } else {
     const headline = result.team ? `Sieger: ${ctx.teamName(result.team)}.` : 'Unentschieden.';
-    ctx.publicEvent('game-over', `Spielende - ${headline} ${result.reason}`, { result });
+    ctx.publicEvent('game-over', `Spielende - ${headline} ${result.reason}`, { result, teamName: result.team ? ctx.teamName(result.team) : null });
   }
   if (ctx.players.every((p) => p.roleId !== '')) {
     ctx.publicEvent('roles-revealed', `Rollen: ${ctx.players.map((p) => `${p.name} – ${ctx.roleName(p.roleId)}`).join(', ')}.`);
