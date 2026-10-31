@@ -243,6 +243,8 @@ export interface VoteCommand {
   playerId: PlayerId;
   /** null = Enthaltung. */
   targetId: PlayerId | null;
+  /** Heimlich eine zweite Abstimmung am selben Tag verlangen (z.B. Stotternder Richter). */
+  requestSecondVote?: boolean;
 }
 
 export interface ChatCommand {

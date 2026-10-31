@@ -90,6 +90,7 @@ export function validateConfig(input: GameConfigInput, registry: Registry): stri
     const role = registry.getRole(roleId);
     if (!registry.getTeam(role.team)) issues.push(`Die Rolle "${role.name}" verweist auf das unbekannte Team "${role.team}".`);
     if (role.unique && count > 1) issues.push(`"${role.name}" darf höchstens einmal im Spiel sein.`);
+    if (role.copies && count !== role.copies) issues.push(`"${role.name}" gibt es nur genau ${role.copies}-mal.`);
     if (role.faction === 'neutral' && !rules.allowNeutralRoles) issues.push(`Neutrale Rollen sind nicht zugelassen ("${role.name}").`);
     total += count;
     if (role.faction === 'werewolves') wolves += count;
@@ -178,7 +179,7 @@ export function buildAutoDeck(registry: Registry, options: AutoDeckOptions): Rec
   let extraCards = 0;
   for (const roleId of new Set(options.specialRoles)) {
     if (roleId === werewolfRoleId || roleId === fillerRoleId) continue;
-    deck[roleId] = 1;
+    deck[roleId] = registry.hasRole(roleId) ? (registry.getRole(roleId).copies ?? 1) : 1;
     if (registry.hasRole(roleId)) extraCards = Math.max(extraCards, registry.getRole(roleId).extraCards ?? 0);
   }
   const used = Object.values(deck).reduce((sum, n) => sum + n, 0);

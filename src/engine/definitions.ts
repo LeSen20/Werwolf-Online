@@ -100,6 +100,8 @@ export interface RoleDefinition {
   team: TeamId;
   /** Höchstens einmal im Kartenstapel. */
   unique?: boolean;
+  /** Gibt es nur genau so oft (z.B. zwei Schwestern). */
+  copies?: number;
   /** Freie Markierungen, z.B. 'werewolf-pack' = wacht mit den Werwölfen auf. */
   tags?: string[];
   abilities?: AbilityDefinition[];
@@ -175,6 +177,12 @@ export interface RuleModule {
   onVoteTie?(ctx: EngineContext, leaders: PlayerId[]): PlayerId | null;
   /** Vom Dorf verbannt: true verhindert den Tod (z.B. Dorfdepp). */
   preventVoteElimination?(ctx: EngineContext, player: PlayerState): boolean;
+  /** Darf dieser Spieler mit seiner Stimme eine zweite Abstimmung verlangen? (z.B. Stotternder Richter) */
+  canRequestSecondVote?(ctx: EngineContext, player: PlayerState): boolean;
+  /** Verlangen vermerken (nur aufgerufen, wenn canRequestSecondVote true war). */
+  onSecondVoteRequest?(ctx: EngineContext, player: PlayerState): void;
+  /** Nach der Abstimmung: true = heute folgt noch eine Abstimmung (Verlangen wird dabei verbraucht). */
+  takeSecondVote?(ctx: EngineContext): boolean;
 }
 
 export const defineRole = (role: RoleDefinition): RoleDefinition => role;

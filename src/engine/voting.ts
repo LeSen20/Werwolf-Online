@@ -56,6 +56,11 @@ export function castVote(ctx: EngineContext, command: VoteCommand): boolean {
     if (target.id === voter.id && !ctx.rules.allowSelfVote) throw new GameError('INVALID_TARGET', 'Man darf nicht für sich selbst stimmen.');
   }
 
+  if (command.requestSecondVote) {
+    const rule = ctx.registry.rules.find((r) => r.canRequestSecondVote?.(ctx, voter));
+    if (!rule) throw new GameError('NOT_ALLOWED', `${voter.name} kann keine zweite Abstimmung verlangen.`);
+    rule.onSecondVoteRequest?.(ctx, voter);
+  }
   vote.ballots[voter.id] = targetId;
   ctx.privateEvent(
     [voter.id],

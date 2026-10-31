@@ -36,7 +36,7 @@ export const PHASE_SPECS: Record<Phase, PhaseSpec> = {
   NIGHT_ACTIONS: { commands: ['USE_ABILITY', 'TIMEOUT', 'ABORT'], next: ['NIGHT_RESOLUTION'] },
   NIGHT_RESOLUTION: { commands: [], next: ['DEATH_RESOLUTION'] },
   DEATH_RESOLUTION: { commands: ['USE_ABILITY', 'TIMEOUT', 'ABORT'], next: ['WIN_CHECK'] },
-  WIN_CHECK: { commands: [], next: ['DAY_ANNOUNCEMENT', 'NIGHT_START'] },
+  WIN_CHECK: { commands: [], next: ['DAY_ANNOUNCEMENT', 'NIGHT_START', 'DAY_VOTING'] },
   DAY_ANNOUNCEMENT: { commands: ['ADVANCE', 'TIMEOUT', 'CHAT', 'ABORT'], next: ['DAY_DISCUSSION'] },
   DAY_DISCUSSION: { commands: ['ADVANCE', 'TIMEOUT', 'CHAT', 'ABORT'], next: ['DAY_VOTING'] },
   DAY_VOTING: { commands: ['VOTE', 'CHAT', 'ADVANCE', 'TIMEOUT', 'ABORT'], next: ['VOTE_RESOLUTION'] },
@@ -183,7 +183,9 @@ export function advance(ctx: EngineContext): void {
           finishGame(ctx, result);
           return;
         }
-        transition(ctx, state.continuation ?? 'NIGHT_START');
+        const next = state.continuation ?? 'NIGHT_START';
+        if (next === 'DAY_VOTING') startVote(ctx, ctx.alivePlayers().map((p) => p.id), 1);
+        transition(ctx, next);
         break;
       }
       case 'VOTE_RESOLUTION': {
@@ -198,7 +200,7 @@ export function advance(ctx: EngineContext): void {
           const spared = ctx.registry.rules.some((rule) => rule.preventVoteElimination?.(ctx, player));
           if (!spared) ctx.kill(outcome.playerId, 'vote');
         }
-        state.continuation = 'NIGHT_START';
+        state.continuation = ctx.registry.rules.some((rule) => rule.takeSecondVote?.(ctx)) ? 'DAY_VOTING' : 'NIGHT_START';
         transition(ctx, 'DEATH_RESOLUTION');
         break;
       }
