@@ -36,12 +36,12 @@ export function newMemory(): BotMemory {
   return { claimedRole: null, messagesToday: 0, day: 0, plannedVote: null, counterClaimed: false };
 }
 
-export const isWerewolfBot = (view: PlayerView) => view.self.role?.faction === 'werewolves';
+export const isWerewolfBot = (view: PlayerView) => view.self.team === 'werewolves' || view.self.role?.faction === 'werewolves';
 const isAlive = (view: PlayerView, id: PlayerId) => view.players.some((p) => p.id === id && p.alive);
 
-/** Verbündete, die ein Bot nie belastet: Rudel und Liebespartner. */
+/** Verbündete, die ein Bot nie belastet: Rudel, Liebespartner und Geschwister. */
 export function alliesOf(view: PlayerView): Set<PlayerId> {
-  return new Set(view.players.filter((p) => p.relations.includes('werewolf-pack') || p.relations.includes('lover')).map((p) => p.id));
+  return new Set(view.players.filter((p) => ['werewolf-pack', 'lover', 'siblings'].some((r) => p.relations.includes(r))).map((p) => p.id));
 }
 
 export const honestAssessment = (ctx: BotContext) => assess(ctx.view, ctx.claims, { usePrivate: true });
@@ -173,6 +173,79 @@ registerBotAbility('thief.steal', (ctx, prompt) => {
 });
 
 registerBotAbility('cupid.lovers', () => ({}));
+
+/** Vertrauenswürdigste Kandidaten zuerst (niedrigster Verdacht, keine bekannten Werwölfe). */
+function mostTrusted(ctx: BotContext, ids: PlayerId[]): PlayerId[] {
+  const ranked = honestAssessment(ctx).filter((s) => ids.includes(s.playerId) && s.known !== 'wolf');
+  return [...ranked].reverse().map((s) => s.playerId);
+}
+
+registerBotAbility('healer.protect', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  const seer = [...roleClaims(ctx.claims)].find(([id, role]) => (role === 'seer' || role === 'witch') && ids.includes(id))?.[0];
+  if (seer) return { targets: [seer] };
+  if (ids.includes(ctx.view.self.id) && ctx.random() < 0.4) return { targets: [ctx.view.self.id] };
+  const target = mostTrusted(ctx, ids)[0] ?? pickRandom(ctx.random, ids);
+  return target ? { targets: [target] } : { skip: true };
+});
+
+registerBotAbility('fox.sniff', (ctx, prompt) => {
+  const ids = candidateIds(prompt).filter((id) => id !== ctx.view.self.id);
+  const top = honestAssessment(ctx).find((s) => ids.includes(s.playerId) && s.known === null);
+  const target = top?.playerId ?? pickRandom(ctx.random, ids);
+  return target ? { targets: [target] } : { skip: true };
+});
+
+registerBotAbility('piper.enchant', (ctx, prompt) => ({ targets: shuffled(ctx.random, candidateIds(prompt)).slice(0, 2) }));
+
+registerBotAbility('wolfhound.choose', (ctx) => ({ choice: ctx.random() < 0.35 ? 'werewolf' : 'village' }));
+
+registerBotAbility('wild-child.model', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  return { targets: [mostTrusted(ctx, ids)[0] ?? pickRandom(ctx.random, ids)!] };
+});
+
+registerBotAbility('urwolf.infect', (ctx) => {
+  const victim = ctx.view.players.find((p) => roleClaims(ctx.claims).get(p.id) === 'seer' || roleClaims(ctx.claims).get(p.id) === 'witch');
+  return ctx.random() < (victim ? 0.8 : 0.4) ? {} : { skip: true };
+});
+
+registerBotAbility('big-bad-wolf.kill', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  const target = publicAssessment(ctx)
+    .filter((s) => ids.includes(s.playerId))
+    .at(-1)?.playerId ?? pickRandom(ctx.random, ids);
+  return target ? { targets: [target] } : { skip: true };
+});
+
+registerBotAbility('white-werewolf.kill', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  return ids.length > 0 && ctx.random() < 0.6 ? { targets: [pickRandom(ctx.random, ids)!] } : { skip: true };
+});
+
+registerBotAbility('scapegoat.choose', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  const suspects = new Set(honestAssessment(ctx).slice(0, 2).map((s) => s.playerId));
+  const voters = ids.filter((id) => !suspects.has(id));
+  return voters.length > 0 ? { targets: voters } : { skip: true };
+});
+
+registerBotAbility('captain.successor', (ctx, prompt) => {
+  const ids = candidateIds(prompt);
+  const allies = [...alliesOf(ctx.view)].filter((id) => ids.includes(id));
+  const target = (isWerewolfBot(ctx.view) ? allies[0] : undefined) ?? mostTrusted(ctx, ids)[0] ?? pickRandom(ctx.random, ids);
+  return { targets: [target!] };
+});
+
+/** Hauptmannswahl: Werwölfe wählen einen Wolf, das Dorf den Vertrauenswürdigsten. */
+export function chooseCaptain(ctx: BotContext, options: PlayerId[]): PlayerId | null {
+  if (isWerewolfBot(ctx.view)) {
+    const ally = [...alliesOf(ctx.view)].find((id) => options.includes(id));
+    if (ally) return ally;
+    return publicAssessment(ctx).filter((s) => options.includes(s.playerId)).at(-1)?.playerId ?? pickRandom(ctx.random, options) ?? null;
+  }
+  return mostTrusted(ctx, options)[0] ?? pickRandom(ctx.random, options) ?? null;
+}
 
 export function decideAbility(ctx: BotContext, prompt: DecisionPrompt): BotAnswer {
   return (strategies.get(prompt.abilityId) ?? genericAnswer)(ctx, prompt);

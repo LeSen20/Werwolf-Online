@@ -82,6 +82,29 @@ describe('Partien mit Bots', () => {
     expect(chats).toBeGreaterThan(100);
   });
 
+  it('Bots spielen alle Rollen und wählen einen Hauptmann', { timeout: 60_000 }, async () => {
+    const registry = createDefaultRegistry();
+    const specials = registry.listRoles().map((r) => r.id).filter((id) => id !== 'villager' && id !== 'werewolf');
+    for (let seed = 1; seed <= 8; seed++) {
+      const playerCount = 10 + (seed % 3);
+      const chosen = specials.filter((_, i) => (i + seed) % 3 === 0);
+      const game = Game.create(
+        {
+          players: NAMES.concat(['Mia', 'Nils']).slice(0, playerCount).map((name) => ({ name })),
+          roles: buildAutoDeck(registry, { playerCount, werewolves: 2, specialRoles: chosen }),
+          options: { captain: { enabled: true } },
+          seed,
+        },
+        registry,
+      );
+      ok(game.dispatch({ type: 'START_GAME' }));
+      ok(game.dispatch({ type: 'ADVANCE' }));
+      const bots = harness(game, game.publicView().players.map((p) => p.id), { seed });
+      await playToEnd(game, bots, `Alle Rollen, Seed ${seed}`);
+      expect(game.publicView().events.some((e) => e.type === 'captain-elected')).toBe(true);
+    }
+  });
+
   it('Bots antworten Menschen in deren Sprache und verteidigen sich', async () => {
     // p1 ist ein Mensch, alle anderen sind Bots.
     const game = setupGame(['villager', 'werewolf', 'seer', 'villager', 'villager']);

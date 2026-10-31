@@ -23,10 +23,8 @@ export const piper = defineRole({
       input: { kind: 'players', min: 1, max: 2 },
       candidates: (ctx, actor) => ctx.alivePlayers().filter((p) => p.id !== actor.id && !isEnchanted(p)).map((p) => p.id),
       describe: () => ({ title: 'Wen verzauberst du heute Nacht?', info: ['Wähle zwei Spieler, die noch nicht verzaubert sind.'] }),
-      validate: (ctx, actor, input) => {
-        const available = ctx.alivePlayers().filter((p) => p.id !== actor.id && !isEnchanted(p)).length;
-        return input.targets.length < Math.min(2, available) ? 'Wähle zwei Spieler.' : null;
-      },
+      // Zwei pro Nacht, nur wenn bloß noch einer übrig ist, einer.
+      minTargets: (ctx, actor) => Math.min(2, ctx.alivePlayers().filter((p) => p.id !== actor.id && !isEnchanted(p)).length),
       onSubmit(ctx, actor, input) {
         for (const id of input.targets) ctx.player(id).marks[ENCHANTED] = true;
         ctx.privateEvent([actor.id], 'piper-enchant', `Du verzauberst ${input.targets.map((id) => ctx.name(id)).join(' und ')}.`);

@@ -3,7 +3,7 @@
  * sehen darf. Die öffentliche Ansicht (Erzähler, Zuschauer) enthält nur
  * öffentliche Informationen. Ein Server schickt später einfach diese Objekte.
  */
-import { candidatesOf, choicesOf, currentPending } from './actions';
+import { candidatesOf, choicesOf, currentPending, minTargetsOf } from './actions';
 import type { EngineContext } from './context';
 import type { Choice } from './definitions';
 import { FACTION_LABELS, PHASE_LABELS } from './labels';
@@ -196,7 +196,7 @@ export function buildPrompt(ctx: EngineContext, pending: PendingDecision): Decis
     title: text.title ?? ability.name,
     info: (text.info ?? []).filter((line) => line.length > 0),
     kind: input.kind,
-    min: input.kind === 'players' ? input.min : 0,
+    min: minTargetsOf(ctx, ability, actor),
     max: input.kind === 'players' ? input.max : 0,
     optional: ability.optional === true,
     candidates: input.kind === 'players' ? named(ctx, candidatesOf(ctx, ability, actor)) : [],

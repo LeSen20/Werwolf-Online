@@ -52,6 +52,20 @@ const ROLE_WORDS: Record<string, string[]> = {
   thief: ['dieb', 'thief'],
   villager: ['dorfbewohner', 'dorfbewohnerin', 'villager'],
   werewolf: ['werwolf', 'werewolf'],
+  healer: ['heiler', 'healer', 'beschützer', 'protector', 'bodyguard'],
+  elder: ['alte', 'elder'],
+  idiot: ['dorfdepp', 'idiot'],
+  scapegoat: ['sündenbock', 'scapegoat'],
+  piper: ['flötenspieler', 'piper'],
+  sister: ['schwester', 'sister'],
+  brother: ['bruder', 'brother'],
+  wolfhound: ['wolfshund', 'wolfhound'],
+  'wild-child': ['kind', 'child'],
+  fox: ['fuchs', 'fox'],
+  'bear-tamer': ['bärenführer', 'baerenfuehrer', 'tamer'],
+  knight: ['ritter', 'knight'],
+  judge: ['richter', 'judge'],
+  angel: ['engel', 'angel'],
 };
 
 const WOLF = /(werwolf|werewolf|wolf|wölfe|wolves)/u;

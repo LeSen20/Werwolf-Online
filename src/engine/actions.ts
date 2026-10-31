@@ -20,6 +20,11 @@ export function actorsOf(ctx: EngineContext, ability: AbilityDefinition): Player
   return ctx.alivePlayers().filter((p) => ctx.registry.roleHasAbility(p.roleId, ability.id)).map((p) => p.id);
 }
 
+/** Mindestzahl an Zielen (kann von der Lage abhängen, z.B. Flötenspieler). */
+export function minTargetsOf(ctx: EngineContext, ability: AbilityDefinition, actor: PlayerState): number {
+  return ability.input.kind === 'players' ? (ability.minTargets?.(ctx, actor) ?? ability.input.min) : 0;
+}
+
 export function candidatesOf(ctx: EngineContext, ability: AbilityDefinition, actor: PlayerState): PlayerId[] {
   if (ability.candidates) return ability.candidates(ctx, actor);
   return ctx.alivePlayers().filter((p) => p.id !== actor.id).map((p) => p.id);
@@ -32,7 +37,7 @@ export function choicesOf(ctx: EngineContext, ability: AbilityDefinition, actor:
 function isInputFeasible(ctx: EngineContext, ability: AbilityDefinition, actor: PlayerState): boolean {
   switch (ability.input.kind) {
     case 'players':
-      return candidatesOf(ctx, ability, actor).length >= ability.input.min;
+      return candidatesOf(ctx, ability, actor).length >= Math.max(1, minTargetsOf(ctx, ability, actor));
     case 'choice':
       return choicesOf(ctx, ability, actor).length > 0;
     default:
@@ -127,8 +132,9 @@ export function validateInput(ctx: EngineContext, ability: AbilityDefinition, ac
     if (new Set(input.targets).size !== input.targets.length) {
       throw new GameError('INVALID_TARGET', 'Jedes Ziel darf nur einmal gewählt werden.');
     }
-    if (input.targets.length < spec.min || input.targets.length > spec.max) {
-      const amount = spec.min === spec.max ? `${spec.min}` : `${spec.min} bis ${spec.max}`;
+    const min = minTargetsOf(ctx, ability, actor);
+    if (input.targets.length < min || input.targets.length > spec.max) {
+      const amount = min === spec.max ? `${min}` : `${min} bis ${spec.max}`;
       throw new GameError('INVALID_TARGET', `Für "${ability.name}" müssen ${amount} Ziel(e) gewählt werden.`);
     }
     const allowed = candidatesOf(ctx, ability, actor);

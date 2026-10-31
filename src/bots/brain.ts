@@ -35,7 +35,7 @@ export function baseRate(view: PlayerView): number {
   const others = view.players.filter((p) => p.alive && p.id !== view.self.id);
   const wolfCards = view.deck.filter((d) => d.faction === 'werewolves').reduce((sum, d) => sum + d.count, 0);
   const deadWolves = view.players.filter((p) => !p.alive && knownFaction(p) === 'werewolves').length;
-  const selfWolf = view.self.role?.faction === 'werewolves' ? 1 : 0;
+  const selfWolf = view.self.team === 'werewolves' || view.self.role?.faction === 'werewolves' ? 1 : 0;
   const wolvesLeft = Math.max(1, wolfCards - deadWolves - selfWolf);
   return clamp(wolvesLeft / Math.max(1, others.length), 0.05, 0.9);
 }

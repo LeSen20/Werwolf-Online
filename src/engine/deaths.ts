@@ -9,7 +9,7 @@
  * Erst wenn die Warteschlange leer ist und keine Entscheidung mehr offen ist,
  * folgt die Siegprüfung. So wird nie mitten in einer Todeskette ausgewertet.
  */
-import { candidatesOf, usesLeft } from './actions';
+import { candidatesOf, minTargetsOf, usesLeft } from './actions';
 import { MARK_SILENCED, type EngineContext } from './context';
 import { GameError } from './errors';
 import { FACTION_LABELS } from './labels';
@@ -73,7 +73,7 @@ export function processDeathQueue(ctx: EngineContext): 'done' | 'waiting' {
   deaths.pending = deaths.pending.filter((pending) => {
     const ability = ctx.registry.getAbility(pending.abilityId);
     const actor = ctx.player(pending.playerId);
-    const feasible = ability.input.kind !== 'players' || candidatesOf(ctx, ability, actor).length >= ability.input.min;
+    const feasible = ability.input.kind !== 'players' || candidatesOf(ctx, ability, actor).length >= Math.max(1, minTargetsOf(ctx, ability, actor));
     if (!feasible) ctx.debug(`"${ability.name}" von ${actor.name} verfällt: kein gültiges Ziel.`);
     return feasible;
   });

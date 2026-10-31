@@ -18,6 +18,7 @@ import { renderIntent, styleMessage, type TemplateLanguage } from './language';
 import { nameAliases } from './names';
 import { createRandom, pickRandom, shuffled, type Random } from './random';
 import {
+  chooseCaptain,
   chooseVote,
   claimsFromIntent,
   decideAbility,
@@ -146,7 +147,8 @@ export class BotController {
         if (!this.isBot(voter.id) || vote!.voted.includes(voter.id)) continue;
         const ctx = this.context(voter.id);
         const options = ctx.view.vote?.options.map((o) => o.id) ?? [];
-        return { type: 'VOTE', playerId: voter.id, targetId: chooseVote(ctx, options, ctx.view.rules.allowAbstain) };
+        const targetId = vote?.kind === 'election' ? chooseCaptain(ctx, options) : chooseVote(ctx, options, ctx.view.rules.allowAbstain);
+        return { type: 'VOTE', playerId: voter.id, targetId };
       }
     }
     return null;
@@ -199,6 +201,8 @@ export class BotController {
   }
 
   private onVoteStart(): void {
+    // Bei der Hauptmannswahl kündigen Bots keine Verbannungsstimme an.
+    if (this.game.publicView().vote?.kind === 'election') return;
     let announced = 0;
     for (const id of shuffled(this.random, this.livingBots())) {
       const ctx = this.context(id);

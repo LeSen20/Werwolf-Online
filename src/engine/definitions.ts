@@ -66,6 +66,8 @@ export interface AbilityDefinition {
 
   /** Wer handelt. Standard: lebende Spieler, deren Rolle diese Fähigkeit besitzt (bzw. Gruppen-Tag). */
   actors?(ctx: EngineContext): PlayerId[];
+  /** Mindestzahl an Zielen, falls sie von der Lage abhängt (Standard: input.min). */
+  minTargets?(ctx: EngineContext, actor: PlayerState): number;
   /** Zulässige Ziele. Standard: alle lebenden Spieler außer dem Akteur. */
   candidates?(ctx: EngineContext, actor: PlayerState): PlayerId[];
   /** Zulässige Optionen bei input.kind 'choice'. */
