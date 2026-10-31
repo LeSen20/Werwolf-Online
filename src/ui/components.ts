@@ -88,6 +88,7 @@ export function playerList(players: PlayerSummary[]): HTMLElement {
         p.role ? h('span', { class: 'tag' }, p.role.name) : p.faction ? h('span', { class: 'tag' }, FACTION_LABELS[p.faction]) : null,
         p.relations.includes('werewolf-pack') ? icon('pack', '') : null,
         p.relations.includes('lover') || p.relations.includes('couple') ? icon('lover', '') : null,
+        p.badges.map((badge) => h('span', { class: 'tag tag-badge' }, badge)),
         p.labels.map((label) => h('span', { class: 'tag tag-info' }, label)),
         p.alive ? null : h('span', { class: 'tag tag-dead' }, icon('dead', ''), p.deathCause ? `tot: ${p.deathCause}` : 'tot'),
       ),

@@ -94,6 +94,7 @@ describe('Flötenspieler', () => {
   it('muss zwei Spieler wählen, solange zwei unverzaubert sind', () => {
     const game = setupGame(['werewolf', 'piper', 'villager', 'villager', 'villager']);
     ok(use(game, 'p1', 'werewolf.kill', ['p5']));
-    expectError(use(game, 'p2', 'piper.enchant', ['p3']), 'NOT_ALLOWED');
+    expectError(use(game, 'p2', 'piper.enchant', ['p3']), 'INVALID_TARGET');
+    expect(game.viewFor('p2').pending[0]).toMatchObject({ min: 2, max: 2 });
   });
 });

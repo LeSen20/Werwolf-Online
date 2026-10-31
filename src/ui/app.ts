@@ -672,7 +672,8 @@ export class App {
   private votingScreen(view: PublicView): Child {
     const game = this.game!;
     const vote = view.vote!;
-    const title = vote.round > 1 ? 'Stichwahl' : 'Abstimmung';
+    const election = vote.kind === 'election';
+    const title = election ? (vote.round > 1 ? 'Stichwahl um das Hauptmannsamt' : 'Hauptmannswahl') : vote.round > 1 ? 'Stichwahl' : 'Abstimmung';
     const close = button('Abstimmung beenden (fehlende Stimmen = Enthaltung)', () => this.dispatch({ type: 'ADVANCE' }), 'secondary');
     // Reihum stimmen nur Menschen ab; Bots stimmen selbst (geheim).
     const next = vote.voters.find((v) => !vote.voted.includes(v.id) && !this.isBot(v.id));
@@ -694,7 +695,7 @@ export class App {
     const prompt = {
       abilityId: 'vote',
       abilityName: 'Stimme',
-      title: `${next.name}: Wen soll das Dorf verbannen?`,
+      title: election ? `${next.name}: Wer soll Hauptmann werden?` : `${next.name}: Wen soll das Dorf verbannen?`,
       info: [],
       kind: 'players' as const,
       min: 1,
@@ -704,11 +705,19 @@ export class App {
       choices: [],
       group: null,
     };
+    // Stotternder Richter: heimlich eine zweite Abstimmung verlangen (nur auf seinem eigenen Zug sichtbar).
+    const secondVote = own.canRequestSecondVote ? h('input', { type: 'checkbox' }) : null;
     return panel(title, [
       promptForm(prompt, (answer) => {
         this.voterReady = null;
-        this.dispatch({ type: 'VOTE', playerId: next.id, targetId: answer.skip ? null : (answer.targets?.[0] ?? null) });
+        this.dispatch({
+          type: 'VOTE',
+          playerId: next.id,
+          targetId: answer.skip ? null : (answer.targets?.[0] ?? null),
+          ...(secondVote?.checked ? { requestSecondVote: true } : {}),
+        });
       }),
+      secondVote ? h('label', { class: 'check' }, secondVote, 'Als Richter heute eine zweite Abstimmung verlangen (nur einmal pro Partie)') : null,
     ]);
   }
 

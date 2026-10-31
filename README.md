@@ -52,7 +52,9 @@ Wartende Phasen brauchen Eingaben. `NIGHT_START`, `NIGHT_RESOLUTION`, `VOTE_RESO
 
 Nachts werden Schritte in Weckreihenfolge aufgerufen (Standard: Dieb 10, Amor 20, Verliebte 30, Seherin 40, Werwölfe 50, Hexe 60; über `nightOrder` änderbar). Entscheidungen werden gesammelt und erst in `NIGHT_RESOLUTION` nach Auflösungspriorität verrechnet. Angriffe und Schutzeffekte werden am Ende gegeneinander geprüft, daher spielt die Eingangsreihenfolge keine Rolle.
 
-## Rollen der Grundversion
+## Rollen
+
+Grundspiel ("Die Werwölfe von Düsterwald"):
 
 | Rolle | Fraktion | Fähigkeit |
 | --- | --- | --- |
@@ -63,6 +65,37 @@ Nachts werden Schritte in Weckreihenfolge aufgerufen (Standard: Dieb 10, Amor 20
 | Jäger | Dorf | nimmt beim Tod einen Spieler mit |
 | Amor | Dorf | verliebt in Nacht 1 zwei Spieler, die gemeinsam sterben |
 | Dieb | Dorf | tauscht in Nacht 1 mit einer von zwei Zusatzkarten |
+| Hauptmann (Regel) | – | wird am ersten Tag gewählt, Stimme zählt doppelt, entscheidet Gleichstände, bestimmt beim Tod seinen Nachfolger |
+
+Erweiterung Neumond:
+
+| Rolle | Fraktion | Fähigkeit |
+| --- | --- | --- |
+| Heiler | Dorf | schützt nachts einen Spieler vor den Werwölfen, nie zweimal hintereinander denselben |
+| Der Alte | Dorf | übersteht den ersten Werwolfangriff; tötet ihn das Dorf (Abstimmung, Hexe, Jäger), verlieren alle Dorfbewohner ihre Fähigkeiten |
+| Dorfdepp | Dorf | wird bei der Verbannung verschont, darf danach nicht mehr abstimmen |
+| Sündenbock | Dorf | stirbt bei Gleichstand statt der anderen und bestimmt, wer am nächsten Tag abstimmen darf |
+| Flötenspieler | allein | verzaubert jede Nacht zwei Spieler, gewinnt, wenn alle anderen Lebenden verzaubert sind |
+
+Erweiterung Charaktere:
+
+| Rolle | Fraktion | Fähigkeit |
+| --- | --- | --- |
+| Zwei Schwestern / Drei Brüder | Dorf | kennen sich (nur zu zweit bzw. zu dritt im Spiel) |
+| Wolfshund | Dorf | entscheidet in Nacht 1, ob er Werwolf wird |
+| Wildes Kind | Dorf | wählt in Nacht 1 ein Vorbild; stirbt es, wird das Kind ein Werwolf |
+| Fuchs | Dorf | prüft nachts einen Spieler und seine zwei Sitznachbarn auf Werwölfe, ohne Fund verliert er die Fähigkeit |
+| Bärenführer | Dorf | morgens brummt der Bär, wenn ein Sitznachbar ein Werwolf ist |
+| Ritter mit dem rostigen Schwert | Dorf | fressen ihn die Werwölfe, stirbt der nächste Werwolf links von ihm in der folgenden Nacht |
+| Stotternder Richter | Dorf | verlangt einmal pro Partie heimlich eine zweite Abstimmung am selben Tag |
+| Engel | allein | gewinnt, wenn er bei der ersten Abstimmung verbannt wird, danach Dorfbewohner |
+| Urwolf | Werwölfe | kann einmal das Opfer anstecken statt es zu fressen: es wird heimlich ein Werwolf |
+| Großer böser Wolf | Werwölfe | frisst ein zweites Opfer, solange noch kein Werwolf gestorben ist |
+| Weißer Werwolf | allein | jagt mit dem Rudel, tötet in jeder zweiten Nacht einen Werwolf, gewinnt nur als letzter Überlebender |
+
+Nicht umgesetzt, weil sie im Kartenspiel auf körperlichen Handlungen beruhen oder Regeln mitten im Aufdecken ändern: das Mädchen (blinzelt bei den Werwölfen), die Ergebene Magd (übernimmt die Rolle eines Verbannten vor dem Aufdecken) und der Gaukler/Schauspieler (wechselt jede Nacht zwischen offen ausgelegten Rollen).
+
+Sitzordnung: Die Reihenfolge der Spielerliste gilt als Sitzkreis, "links" ist der nächste Spieler in der Liste.
 
 ## Standardregeln und Entscheidungen
 

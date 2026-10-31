@@ -32,6 +32,7 @@ interface SetupState {
   witchSelfHeal: boolean;
   witchBoth: boolean;
   mixedLovers: boolean;
+  captain: boolean;
   discussion: number;
   libreTranslateUrl: string;
 }
@@ -105,6 +106,7 @@ export class SetupScreen {
       witchSelfHeal: true,
       witchBoth: true,
       mixedLovers: false,
+      captain: true,
       discussion: DEFAULT_TIMERS.discussion,
       libreTranslateUrl: typeof stored.libreTranslateUrl === 'string' ? stored.libreTranslateUrl : '',
     };
@@ -131,6 +133,7 @@ export class SetupScreen {
         seer: { result: s.seerResult },
         witch: { canSelfHeal: s.witchSelfHeal, canUseBothSameNight: s.witchBoth },
         'mixed-lovers': { enabled: s.mixedLovers },
+        captain: { enabled: s.captain },
       },
       timers: { discussion: s.discussion },
     };
@@ -223,6 +226,7 @@ export class SetupScreen {
     const playerSection = panel(
       `Spieler (${s.names.length}, davon ${s.names.length - humans} Bots)`,
       [
+        h('p', { class: 'hint' }, 'Die Reihenfolge der Liste ist die Sitzordnung im Kreis (wichtig für Fuchs, Bärenführer und Ritter).'),
         h(
           'ol',
           { class: 'name-list' },
@@ -370,6 +374,7 @@ export class SetupScreen {
         checkbox('Hexe darf sich selbst heilen', s.witchSelfHeal, (v) => (s.witchSelfHeal = v)),
         checkbox('Hexe darf beide Tränke in einer Nacht nutzen', s.witchBoth, (v) => (s.witchBoth = v)),
         checkbox('Gemischtes Liebespaar gewinnt eigenständig', s.mixedLovers, (v) => (s.mixedLovers = v)),
+        checkbox('Hauptmann wählen (doppelte Stimme)', s.captain, (v) => (s.captain = v)),
       ),
     ]);
 

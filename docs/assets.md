@@ -1,6 +1,6 @@
 # Grafikliste (Pixelgrafik, Retro-Stil)
 
-30 Grafiken (davon fertig: Werwolf, Dorfbewohner, Hexe, Rückseite), dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
+47 Grafiken (davon fertig: Werwolf, Dorfbewohner, Hexe, Rückseite; alle übrigen Rollenkarten sind mit dem Kartengenerator erzeugte Platzhalter mit gemeinsamer Szene), dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
 
 Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
@@ -25,8 +25,10 @@ Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 | `cards/cupid.png` | Amor | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/thief.png` | Dieb | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/back.png` | Rückseite | fertig (Standbild) |
+| `cards/healer.png`, `elder.png`, `idiot.png`, `scapegoat.png`, `piper.png` | Neumond: Heiler, Der Alte, Dorfdepp, Sündenbock, Flötenspieler | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/sister.png`, `brother.png`, `wolfhound.png`, `wild-child.png`, `fox.png`, `bear-tamer.png`, `knight.png`, `judge.png`, `angel.png`, `urwolf.png`, `big-bad-wolf.png`, `white-werewolf.png` | Charaktere: Schwester, Bruder, Wolfshund, Wildes Kind, Fuchs, Bärenführer, Ritter, Richter, Engel, Urwolf, Großer böser Wolf, Weißer Werwolf | animiert, Bild: Nachtszene ohne Wolf, bei den drei Werwolf-Rollen mit Wolf |
 
-Seherin, Jäger, Amor und Dieb sind mit dem Kartengenerator der Werwolf-Karte erzeugt: gleicher Rahmen, Haus im Medaillon wie bei den Dorf-Karten, Titel und kurzer Kartentext je Rolle, Nachtszene ohne Wolf. Ein eigenes Motiv je Rolle ersetzt später nur das Bildfeld.
+Alle Karten außer Werwolf, Dorfbewohner und Hexe sind mit dem Kartengenerator der Werwolf-Karte erzeugt: gleicher Rahmen, Haus im Medaillon bei Dorf-Rollen und Wolf bei Werwolf-Rollen, Titel und kurzer Kartentext je Rolle, gemeinsame Nachtszene. Ein eigenes Motiv je Rolle ersetzt später nur das Bildfeld.
 
 - **Komplette Karte wie die Werwolf-Karte: 192 x 288 Pixel** (2:3) mit eigenem Rahmen, Titel und Beschreibung. Das Spiel zeichnet keinen zusätzlichen Rahmen. Die abgenutzte Außenkante darf transparent sein.
 - Angezeigt 1x auf Handys, 2x (384 x 576) auf großen Bildschirmen, als Vorschau in der Endübersicht verkleinert (0,5x) mit dem Rollennamen darunter.

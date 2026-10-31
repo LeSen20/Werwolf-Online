@@ -402,6 +402,12 @@ input[type='checkbox'] {
   color: var(--danger);
 }
 
+.tag-badge {
+  color: var(--surface);
+  background: var(--line);
+  border-color: var(--gold);
+}
+
 /* ---- Rollenkarten: komplette Kartengrafik (192 x 288) oder Platzhalter im selben Aufbau ---- */
 .card {
   --card-color: var(--muted);
