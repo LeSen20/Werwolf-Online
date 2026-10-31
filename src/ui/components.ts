@@ -21,13 +21,9 @@ export function panel(title: string, body: Child[], actions: Child[] = []): HTML
  */
 export function roleCard(role: RoleInfo | null, size: 'small' | 'large' = 'large'): HTMLElement {
   if (!role) {
-    return h(
-      'div',
-      { class: `card card-${size} card-back` },
-      ASSETS.cardBack
-        ? h('img', { src: assetUrl(ASSETS.cardBack), alt: 'Kartenrückseite' })
-        : h('div', { class: 'card-placeholder' }, h('span', { class: 'placeholder-label' }, 'Rückseite')),
-    );
+    return ASSETS.cardBack
+      ? h('div', { class: `card card-${size} card-art card-back` }, h('img', { src: assetUrl(ASSETS.cardBack), alt: 'Kartenrückseite' }))
+      : h('div', { class: `card card-${size} card-back` }, h('div', { class: 'card-placeholder' }, h('span', { class: 'placeholder-label' }, 'Rückseite')));
   }
   const image = ASSETS.cards[role.id];
   if (image) {

@@ -1,6 +1,6 @@
 # Grafikliste (Pixelgrafik, Retro-Stil)
 
-30 Grafiken (davon fertig: Werwolf-Karte), dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
+30 Grafiken (davon fertig: Werwolf, Dorfbewohner, Hexe, Rückseite), dazu 4 optionale und 6 Töne. Alles ist optional: Fehlt eine Datei, zeigt das Spiel einen Platzhalter.
 
 Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 
@@ -18,15 +18,15 @@ Empfohlene Reihenfolge: Rollenkarten, Hintergründe, Avatare, Symbole, Logo.
 | Datei | Rolle | Stand |
 | --- | --- | --- |
 | `cards/werewolf.png` | Werwolf | fertig, animiert |
-| `cards/villager.png` | Dorfbewohner | animiert, Bild: Nachtszene ohne Wolf |
+| `cards/villager.png` | Dorfbewohner | fertig, animiert |
+| `cards/witch.png` | Hexe | fertig, animiert |
 | `cards/seer.png` | Seherin | animiert, Bild: Nachtszene ohne Wolf |
-| `cards/witch.png` | Hexe | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/hunter.png` | Jäger | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/cupid.png` | Amor | animiert, Bild: Nachtszene ohne Wolf |
 | `cards/thief.png` | Dieb | animiert, Bild: Nachtszene ohne Wolf |
-| `cards/back.png` | Rückseite | Platzhalter |
+| `cards/back.png` | Rückseite | fertig (Standbild) |
 
-Die sechs Karten ohne Wolf sind mit dem Kartengenerator der Werwolf-Karte erzeugt (gleicher Rahmen, Titel und kurzer Kartentext je Rolle, Nachtszene ohne Wolf). Ein eigenes Motiv je Rolle ersetzt später nur das Bildfeld.
+Seherin, Jäger, Amor und Dieb sind mit dem Kartengenerator der Werwolf-Karte erzeugt: gleicher Rahmen, Haus im Medaillon wie bei den Dorf-Karten, Titel und kurzer Kartentext je Rolle, Nachtszene ohne Wolf. Ein eigenes Motiv je Rolle ersetzt später nur das Bildfeld.
 
 - **Komplette Karte wie die Werwolf-Karte: 192 x 288 Pixel** (2:3) mit eigenem Rahmen, Titel und Beschreibung. Das Spiel zeichnet keinen zusätzlichen Rahmen. Die abgenutzte Außenkante darf transparent sein.
 - Angezeigt 1x auf Handys, 2x (384 x 576) auf großen Bildschirmen, als Vorschau in der Endübersicht verkleinert (0,5x) mit dem Rollennamen darunter.

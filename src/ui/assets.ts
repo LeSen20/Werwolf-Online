@@ -31,7 +31,7 @@ export interface AssetConfig {
 export const ASSETS: AssetConfig = {
   cards: { werewolf: 'assets/cards/werewolf.png', villager: 'assets/cards/villager.png', seer: 'assets/cards/seer.png', witch: 'assets/cards/witch.png', hunter: 'assets/cards/hunter.png', cupid: 'assets/cards/cupid.png', thief: 'assets/cards/thief.png' },
   cardAnimations: { werewolf: 'assets/cards/werewolf-sheet.json', villager: 'assets/cards/villager-sheet.json', seer: 'assets/cards/seer-sheet.json', witch: 'assets/cards/witch-sheet.json', hunter: 'assets/cards/hunter-sheet.json', cupid: 'assets/cards/cupid-sheet.json', thief: 'assets/cards/thief-sheet.json' },
-  cardBack: null,
+  cardBack: 'assets/cards/back.png',
   backgrounds: { setup: null, night: null, day: null, gameOver: null },
   backgroundsPortrait: {},
   logo: null,
