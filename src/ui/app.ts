@@ -11,6 +11,7 @@ import { basicTranslator, createTranslator, detectLanguage, type Translator } fr
 import { ASSETS, assetUrl, playSound, type SoundKey } from './assets';
 import { setCardAnimationGroup } from './cardAnimation';
 import { chatLog, eventLog, icon, knowledge, panel, playerList, promptForm, roleCard, type Theme } from './components';
+import type { DecisionPrompt, PlayerView } from '../engine';
 import { button, h, type Child } from './dom';
 import { SetupScreen, type StartRequest } from './setup';
 
@@ -26,6 +27,22 @@ const SOUND_SEQUENCE: ReadonlyArray<readonly [string, SoundKey]> = [
   ['game-over', 'gameOver'],
 ];
 const SOUND_GAP_MS = 1500;
+
+/**
+ * Nachtrunde reihum (Nachtmodus 'pass'): Jeder lebende Mensch bekommt das Gerät, in Sitzreihenfolge.
+ * Wer etwas zu entscheiden hat, entscheidet; alle anderen erledigen eine Tarnaufgabe. So verraten
+ * weder das Nehmen des Geräts noch ein liegen bleibendes Gerät (Rolle bei einem Bot) etwas.
+ * Runde 2 folgt, wenn im Spiel eine Rolle ist, die auf andere warten muss (z.B. Hexe auf die Werwölfe).
+ */
+interface NightPass {
+  round: number;
+  pass: number;
+  order: PlayerId[];
+  index: number;
+  stage: 'cover' | 'turn' | 'done';
+  /** Hat der aktuelle Spieler in seinem Zug schon etwas entschieden (echt oder Tarnung)? */
+  acted: boolean;
+}
 
 interface Interstitial {
   title: string;
@@ -71,6 +88,9 @@ export class App {
   private logMode: 'off' | 'public' | 'debug' = 'off';
   private timer: { key: string; endsAt: number; handle: number } | null = null;
   private theme: Theme = 'setup';
+  private nightPass: NightPass | null = null;
+  /** Letztes Ereignis, das ein Spieler in seinem Nachtzug gesehen hat (für "Neu für dich"). */
+  private readonly seenEvents = new Map<PlayerId, number>();
   private readonly imageSizes = new Map<string, { width: number; height: number }>();
 
   constructor(root: HTMLElement) {
@@ -129,6 +149,8 @@ export class App {
     this.game = null;
     this.message = null;
     this.interstitial = null;
+    this.nightPass = null;
+    this.seenEvents.clear();
     this.setup.renewBotNames();
     this.render();
   }
@@ -225,6 +247,8 @@ export class App {
   /** Zeigt nach einem abgeschlossenen Abschnitt eine Zwischenseite mit den Ergebnissen. */
   private summarize(before: PublicView, beforeKey: string, actors: Set<PlayerId>, events: GameEvent[]): void {
     const afterKey = this.screenKey();
+    // Nachtrunde reihum: Ergebnisse zeigt der jeweilige Zug selbst.
+    if (beforeKey.startsWith('night:') && before.rules.nightMode === 'pass') return;
     if (beforeKey.startsWith('night:')) {
       // Private Ergebnisse (z.B. Seherin) nur für die gerade wachen Menschen; Bot-Wissen bleibt geheim.
       const humans = [...actors].filter((id) => !this.isBot(id));
@@ -260,7 +284,7 @@ export class App {
       case 'ROLE_DISTRIBUTION':
         return view.timers.roleReveal;
       case 'NIGHT_ACTIONS':
-        return this.awakeKey === this.screenKey(view) ? view.timers.nightStep : 0;
+        return view.rules.nightMode !== 'pass' && this.awakeKey === this.screenKey(view) ? view.timers.nightStep : 0;
       case 'DEATH_RESOLUTION':
         return view.timers.deathDecision;
       case 'DAY_DISCUSSION':
@@ -475,6 +499,7 @@ export class App {
 
   private screen(view: PublicView | null): Child {
     if (!this.game || !view) return this.setup.render();
+    if (this.nightPass && !this.interstitial) return this.passScreen(view);
     if (this.interstitial) {
       const { title, lines, buttonLabel } = this.interstitial;
       return panel(title, lines.map((line) => h('p', { class: 'narration' }, line)), [
@@ -563,6 +588,15 @@ export class App {
   }
 
   private nightScreen(view: PublicView): Child {
+    if (view.rules.nightMode === 'pass' && this.nightIntroRound < view.round) {
+      return panel(`Nacht ${view.round}`, [h('p', { class: 'narration' }, 'Die Nacht bricht herein. Alle schließen die Augen. Das Gerät geht reihum, jeder ist einmal dran.')], [
+        button('Alle Augen sind zu', () => {
+          this.nightIntroRound = view.round;
+          this.startPass(view, 1);
+          this.render();
+        }),
+      ]);
+    }
     if (this.nightIntroRound < view.round) {
       return panel(`Nacht ${view.round}`, [h('p', { class: 'narration' }, 'Die Nacht bricht herein. Alle schließen die Augen.')], [
         button('Alle Augen sind zu', () => {
@@ -599,6 +633,125 @@ export class App {
   }
 
   /** Entscheidungen aller aktuell handelnden Spieler (Nachtschritt oder Todesfolge). */
+  // ---------------------------------------------------------------- Nachtrunde reihum
+
+  private startPass(view: PublicView, pass: number): void {
+    const order = [...view.players]
+      .filter((p) => p.alive && !this.isBot(p.id))
+      .sort((a, b) => a.seat - b.seat)
+      .map((p) => p.id);
+    this.nightPass = { round: view.round, pass, order, index: 0, stage: 'cover', acted: false };
+  }
+
+  /** Runde 2 hängt nur vom Kartenstapel ab, nicht davon, wer welche Rolle hat (sonst verriete sie etwas). */
+  private needsSecondPass(view: PublicView, round: number): boolean {
+    const active = (nights: string | undefined) => (nights === 'first' ? round === 1 : nights === 'after-first' ? round > 1 : true);
+    return view.deck.some((entry) =>
+      (this.registry.getRole(entry.roleId).abilities ?? []).some((a) => a.trigger === 'night' && (a.after?.length ?? 0) > 0 && active(a.nights)),
+    );
+  }
+
+  /** Offene Entscheidungen eines Spielers; Gruppenstimmen gelten nach der eigenen Stimme als erledigt. */
+  private openPrompts(own: PlayerView): DecisionPrompt[] {
+    return own.pending.filter((prompt) => !prompt.group?.some((m) => m.playerId === own.self.id && m.targets !== null));
+  }
+
+  /** Private Nachrichten dieser Nacht, die der Spieler noch nicht gesehen hat. */
+  private newNotes(own: PlayerView, round: number): string[] {
+    const seen = this.seenEvents.get(own.self.id) ?? -1;
+    return own.events
+      .filter((e) => e.id > seen && e.round === round && e.visibility.kind === 'players' && e.type !== 'group-vote' && e.type !== 'ballot')
+      .map((e) => e.text);
+  }
+
+  private passScreen(view: PublicView): Child {
+    const pass = this.nightPass!;
+    const game = this.game!;
+    if (game.phase === 'GAME_OVER') {
+      this.nightPass = null;
+      return this.screen(view);
+    }
+    if (pass.index >= pass.order.length) return this.passEnd(view);
+    const playerId = pass.order[pass.index];
+    const own = game.viewFor(playerId);
+    const title = `Nacht ${pass.round}`;
+    if (pass.stage === 'cover') {
+      return panel(title, [h('p', { class: 'narration' }, `Gib das Gerät an ${own.self.name}.`), h('p', null, 'Alle anderen halten die Augen geschlossen.')], [
+        button(`Ich bin ${own.self.name}`, () => {
+          pass.stage = 'turn';
+          this.render();
+        }),
+      ]);
+    }
+    const header = h('h3', null, `${own.self.name}${own.self.role ? ` (${own.self.role.name})` : ''}`);
+    const open = game.phase === 'NIGHT_ACTIONS' ? this.openPrompts(own) : [];
+    if (pass.stage === 'turn' && open.length > 0) {
+      return panel(title, [
+        header,
+        knowledge(own),
+        ...open.map((prompt) =>
+          promptForm(prompt, (answer) => {
+            pass.acted = true;
+            this.dispatch({ type: 'USE_ABILITY', playerId, abilityId: prompt.abilityId, ...answer });
+          }),
+        ),
+      ]);
+    }
+    if (pass.stage === 'turn' && !pass.acted) {
+      // Tarnaufgabe: dauert ungefähr so lange wie eine echte Entscheidung.
+      const others = own.players.filter((p) => p.alive && p.id !== playerId).map((p) => ({ id: p.id, name: p.name }));
+      const decoy: DecisionPrompt = {
+        abilityId: 'decoy',
+        abilityName: 'Tarnung',
+        title: 'Du hast heute Nacht nichts zu tun. Wen behältst du im Auge?',
+        info: ['Das dient nur der Tarnung, damit niemand am Geräusch erkennt, wer eine Rolle hat.'],
+        kind: 'players',
+        min: 1,
+        max: 1,
+        optional: false,
+        candidates: others,
+        choices: [],
+        group: null,
+      };
+      return panel(title, [
+        header,
+        knowledge(own),
+        promptForm(decoy, () => {
+          pass.acted = true;
+          pass.stage = 'done';
+          this.render();
+        }),
+      ]);
+    }
+    const notes = this.newNotes(own, pass.round);
+    return panel(title, [header, ...notes.map((line) => h('p', { class: 'narration' }, line)), notes.length === 0 ? h('p', null, 'Nichts Neues für dich.') : null], [
+      button('Augen schließen und Gerät weitergeben', () => {
+        this.seenEvents.set(playerId, Math.max(-1, ...own.events.map((e) => e.id)));
+        pass.index += 1;
+        pass.stage = 'cover';
+        pass.acted = false;
+        this.render();
+      }),
+    ]);
+  }
+
+  /** Nach einer Runde: Runde 2 (falls laut Stapel nötig), auf Bots warten oder den Morgen zeigen. */
+  private passEnd(view: PublicView): Child {
+    const pass = this.nightPass!;
+    const game = this.game!;
+    const waiting = panel(`Nacht ${pass.round}`, [h('p', { class: 'narration' }, 'Die Nacht ist noch nicht vorbei ...'), h('p', null, 'Alle halten die Augen geschlossen.')]);
+    const botsBusy = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => this.isBot(p.playerId));
+    const humansOpen = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => !this.isBot(p.playerId));
+    if (botsBusy) return waiting;
+    if ((pass.pass === 1 && this.needsSecondPass(view, pass.round)) || humansOpen) {
+      this.startPass(view, pass.pass + 1);
+      this.nightPass!.round = pass.round;
+      return this.passScreen(view);
+    }
+    this.nightPass = null;
+    return h('div', null, this.screen(view));
+  }
+
   private decisionScreen(title: string, intro: string[]): Child {
     const game = this.game!;
     const pending: PendingDecision[] = game.pendingDecisions();

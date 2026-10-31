@@ -101,7 +101,7 @@ export class SetupScreen {
       werewolves: suggestWerewolfCount(names.length),
       specials: ['seer', 'witch', 'hunter', 'cupid'],
       counts: {},
-      rules: { ...DEFAULT_RULES },
+      rules: { ...DEFAULT_RULES, nightMode: 'pass' },
       seerResult: 'faction',
       witchSelfHeal: true,
       witchBoth: true,
@@ -375,6 +375,7 @@ export class SetupScreen {
         checkbox('Hexe darf beide Tränke in einer Nacht nutzen', s.witchBoth, (v) => (s.witchBoth = v)),
         checkbox('Gemischtes Liebespaar gewinnt eigenständig', s.mixedLovers, (v) => (s.mixedLovers = v)),
         checkbox('Hauptmann wählen (doppelte Stimme)', s.captain, (v) => (s.captain = v)),
+        checkbox('Nachts bekommt jeder das Gerät (verrät niemanden)', s.rules.nightMode === 'pass', (v) => (s.rules.nightMode = v ? 'pass' : 'roles')),
       ),
     ]);
 

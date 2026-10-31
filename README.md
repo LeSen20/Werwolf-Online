@@ -115,7 +115,9 @@ Wo die Vorgaben offen oder widersprüchlich waren, gilt (alles konfigurierbar):
 
 ## Hot-Seat-Oberfläche
 
-Ein Gerät ist der Erzähler. Rollen werden reihum geheim angesehen; nachts ruft das Gerät die Rollen auf, nur die Aufgerufenen schauen hin; die Abstimmung läuft geheim reihum. Gruppenentscheidungen (Werwölfe) werden gemeinsam eingegeben, die Engine prüft trotzdem jede Einzelstimme.
+Ein Gerät ist der Erzähler. Rollen werden reihum geheim angesehen, die Abstimmung läuft geheim reihum.
+
+Nachts geht das Gerät standardmäßig reihum (Regel `nightMode: 'pass'`, in der Vorbereitung abschaltbar): Jeder lebende Mensch bekommt es einmal in Sitzreihenfolge. Wer eine Rolle mit Nachtaktion hat, entscheidet; alle anderen erledigen eine kurze Tarnaufgabe. So verrät weder das Geräusch beim Nehmen des Geräts noch ein liegen bleibendes Gerät (Rolle bei einem Bot), wer welche Rolle hat. Rollen, die auf andere warten (Hexe und Urwolf auf die Werwölfe, Verliebte auf Amor), handeln in einer zweiten Runde. Ob es sie gibt, hängt nur vom Kartenstapel ab, nicht davon, wer welche Rolle hat. Werwölfe stimmen dabei einmal ab und sehen die bisherigen Stimmen ihres Rudels; nach der letzten Stimme entscheidet die Mehrheit. Abgeschaltet ruft das Gerät wie ein Spielleiter die Rollen einzeln auf.
 
 In der Vorbereitung lässt sich jeder Platz als Bot markieren, "Einzelspieler gegen Bots" füllt alle anderen Plätze mit Bots. Bots bekommen jede Partie neue, zufällige Benutzernamen (z.B. `le_na3`, `nachteule7`, `ShadowFox92`). Bots handeln selbstständig, Menschen werden nur für ihre eigenen Schritte aufgerufen. Tagsüber gibt es einen Chat: Bots beschuldigen mit Begründung, verteidigen sich und antworten auf Fragen. Details und Grenzen in [docs/bots.md](docs/bots.md).
 

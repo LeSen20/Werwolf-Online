@@ -55,6 +55,12 @@ export interface GameRules {
   /** Partien ohne Werwolf verbieten. */
   requireWerewolves: boolean;
   allowNeutralRoles: boolean;
+  /**
+   * Nachtablauf: 'roles' = Rollen werden nacheinander aufgerufen (wie mit Spielleiter),
+   * 'pass' = alle Entscheidungen sind gleichzeitig offen, sobald ihre Voraussetzungen erfüllt sind
+   * (für die Nachtrunde reihum: jeder bekommt das Gerät, niemand verrät sich durch den Aufruf).
+   */
+  nightMode: 'roles' | 'pass';
 }
 
 /** Zeitlimits in Sekunden (0 = unbegrenzt). Die Engine misst keine Zeit: Server/UI senden TIMEOUT. */

@@ -56,6 +56,8 @@ export interface AbilityDefinition {
   nights?: 'first' | 'all' | 'after-first';
   /** Gruppenentscheidung: alle lebenden Spieler mit diesem Rollen-Tag müssen sich einigen. */
   group?: { tag: string };
+  /** Nur Nachtmodus 'pass': erst offen, wenn diese Nachtschritte erledigt sind (z.B. Hexe nach den Werwölfen). */
+  after?: string[];
 
   // ---- Allgemein
   /** Maximale Einsätze pro Partie (Ressource). Ohne Angabe unbegrenzt. */

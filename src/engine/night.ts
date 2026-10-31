@@ -66,6 +66,33 @@ function pendingForStep(ctx: EngineContext, step: NightStep): PendingDecision[] 
   return pending;
 }
 
+/** Spieler, die für diese Fähigkeit in dieser Nacht noch eine Entscheidung schulden. */
+function actorsOwing(ctx: EngineContext, ability: AbilityDefinition): PlayerId[] {
+  if (!activeInNight(ability, ctx.state.round)) return [];
+  const recorded = ctx.night.actions.filter((a) => a.abilityId === ability.id);
+  if (ability.group && recorded.length > 0) return [];
+  const acted = new Set(recorded.flatMap((a) => a.actorIds));
+  return actorsOf(ctx, ability).filter((id) => !acted.has(id) && isAbilityAvailable(ctx, ability, ctx.player(id)));
+}
+
+/**
+ * Nachtmodus 'pass': Alle Entscheidungen sind gleichzeitig offen, in beliebiger Reihenfolge.
+ * Nur Fähigkeiten mit after warten, bis die genannten Schritte erledigt sind (Hexe nach den Werwölfen).
+ * Rückgabe true = nichts mehr offen, die Nacht wird aufgelöst.
+ */
+function advancePassNight(ctx: EngineContext): boolean {
+  const steps = listNightSteps(ctx);
+  const done = (stepId: string, depth = 0): boolean => {
+    const step = steps.find((s) => s.id === stepId);
+    return !step || (depth < 10 && step.abilities.every((a) => ready(a, depth + 1) && actorsOwing(ctx, a).length === 0));
+  };
+  const ready = (ability: AbilityDefinition, depth = 0): boolean => (ability.after ?? []).every((id) => done(id, depth));
+  ctx.night.pending = steps.flatMap((step) =>
+    step.abilities.filter((a) => ready(a)).flatMap((a) => actorsOwing(ctx, a).map((playerId) => ({ abilityId: a.id, playerId }))),
+  );
+  return ctx.night.pending.length === 0;
+}
+
 export function startNight(ctx: EngineContext): void {
   ctx.state.round += 1;
   ctx.state.time = 'night';
@@ -80,6 +107,7 @@ export function startNight(ctx: EngineContext): void {
  * die Seherin nimmt, im selben Durchgang als Seherin aufgerufen wird.
  */
 export function advanceNight(ctx: EngineContext): boolean {
+  if (ctx.rules.nightMode === 'pass') return advancePassNight(ctx);
   const night = ctx.night;
   for (let guard = 0; guard < 1000; guard++) {
     if (night.step) {

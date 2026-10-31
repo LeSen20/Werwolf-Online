@@ -22,6 +22,7 @@ export const DEFAULT_RULES: GameRules = {
   revealBallots: false,
   requireWerewolves: true,
   allowNeutralRoles: true,
+  nightMode: 'roles',
 };
 
 export const DEFAULT_TIMERS: Timers = {
@@ -43,6 +44,7 @@ const RULE_VALUES: { [K in keyof GameRules]: readonly GameRules[K][] } = {
   revealBallots: [true, false],
   requireWerewolves: [true, false],
   allowNeutralRoles: [true, false],
+  nightMode: ['roles', 'pass'],
 };
 
 const defaultPlayerId = (index: number): PlayerId => `p${index + 1}`;

@@ -55,6 +55,7 @@ const meet: AbilityDefinition = {
   id: 'cupid.lovers',
   name: 'Partner erkennen',
   trigger: 'night',
+  after: ['cupid'],
   step: 'lovers',
   stepLabel: 'Die Verliebten',
   order: 30,

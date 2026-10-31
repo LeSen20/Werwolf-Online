@@ -201,6 +201,10 @@ function castGroupVote(ctx: EngineContext, ability: AbilityDefinition, actor: Pl
   const first = votes[members[0]];
   const agreed = first !== undefined && members.every((id) => votes[id] !== undefined && sameTargets(votes[id], first));
   if (agreed) finishGroup(ctx, ability, members, first);
+  // Nachtrunde reihum: Jedes Mitglied stimmt einmal ab, danach entscheidet die Mehrheit (Gleichstand: Los).
+  else if (ctx.rules.nightMode === 'pass' && members.every((id) => votes[id] !== undefined)) {
+    finishGroup(ctx, ability, members, ability.onGroupTimeout ? ability.onGroupTimeout(ctx, votes) : pluralityTargets(ctx, votes));
+  }
 }
 
 function finishGroup(ctx: EngineContext, ability: AbilityDefinition, members: PlayerId[], targets: PlayerId[] | null): void {
