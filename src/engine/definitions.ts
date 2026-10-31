@@ -183,6 +183,12 @@ export interface RuleModule {
   onSecondVoteRequest?(ctx: EngineContext, player: PlayerState): void;
   /** Nach der Abstimmung: true = heute folgt noch eine Abstimmung (Verlangen wird dabei verbraucht). */
   takeSecondVote?(ctx: EngineContext): boolean;
+  /** Vor der Verbannungsabstimmung eine Wahl abhalten (z.B. Hauptmann)? */
+  holdElection?(ctx: EngineContext): boolean;
+  /** Ergebnis der Wahl. */
+  onElected?(ctx: EngineContext, playerId: PlayerId): void;
+  /** Öffentlich sichtbare Abzeichen eines Spielers (z.B. "Hauptmann"). */
+  badges?(ctx: EngineContext, player: PlayerState): string[];
 }
 
 export const defineRole = (role: RoleDefinition): RoleDefinition => role;

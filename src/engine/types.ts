@@ -161,6 +161,8 @@ export interface NightState {
 }
 
 export interface VoteState {
+  /** Verbannung (Standard) oder Wahl, z.B. des Hauptmanns. */
+  kind?: 'lynch' | 'election';
   /** 1 = Hauptabstimmung, 2 = Stichwahl. */
   round: number;
   candidates: PlayerId[];

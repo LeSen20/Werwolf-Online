@@ -8,6 +8,7 @@ import type { PlayerId, VoteCommand, VoteState } from './types';
 
 export type VoteOutcome =
   | { kind: 'eliminate'; playerId: PlayerId }
+  | { kind: 'elect'; playerId: PlayerId }
   | { kind: 'runoff'; candidates: PlayerId[] }
   | { kind: 'none' };
 
@@ -18,17 +19,19 @@ function requireVote(ctx: EngineContext): VoteState {
 
 const names = (ctx: EngineContext, ids: PlayerId[]) => ids.map((id) => ctx.name(id)).join(', ');
 
-export function startVote(ctx: EngineContext, candidates: PlayerId[], round: number): void {
+export function startVote(ctx: EngineContext, candidates: PlayerId[], round: number, kind: 'lynch' | 'election' = 'lynch'): void {
   const voters = ctx
     .alivePlayers()
     .filter((p) => p.marks[MARK_NO_VOTE] !== true && ctx.registry.rules.every((rule) => rule.canVote?.(ctx, p) ?? true))
     .map((p) => p.id);
-  ctx.state.vote = { round, candidates: [...candidates], voters, ballots: {} };
-  ctx.publicEvent(
-    'vote-start',
-    round === 1 ? 'Die Abstimmung beginnt. Jeder lebende Spieler hat eine Stimme.' : `Stichwahl zwischen ${names(ctx, candidates)}.`,
-    { round, candidates },
-  );
+  ctx.state.vote = { kind, round, candidates: [...candidates], voters, ballots: {} };
+  const text =
+    round > 1
+      ? `Stichwahl zwischen ${names(ctx, candidates)}.`
+      : kind === 'election'
+        ? 'Das Dorf wählt einen Hauptmann. Jeder lebende Spieler hat eine Stimme.'
+        : 'Die Abstimmung beginnt. Jeder lebende Spieler hat eine Stimme.';
+  ctx.publicEvent('vote-start', text, { round, candidates, kind });
 }
 
 /** Ziele, für die ein Spieler stimmen darf. */
@@ -79,6 +82,18 @@ export function closeVote(ctx: EngineContext): void {
   if (missing.length > 0) ctx.debug(`Abstimmung geschlossen, ohne Stimme: ${names(ctx, missing)}`);
 }
 
+/** Wahl (z.B. Hauptmann): Mehrheit gewinnt, bei Gleichstand Stichwahl, danach entscheidet das Los. */
+function resolveElection(ctx: EngineContext, vote: VoteState, leaders: PlayerId[]): VoteOutcome {
+  const pool = leaders.length > 0 ? leaders : vote.candidates;
+  if (pool.length > 1 && vote.round === 1 && leaders.length > 1) {
+    ctx.publicEvent('vote-tie', `Gleichstand zwischen ${names(ctx, pool)}. Es folgt eine Stichwahl.`, { leaders: pool });
+    return { kind: 'runoff', candidates: pool };
+  }
+  const chosen = pool.length === 1 ? pool[0] : ctx.pick(pool);
+  if (pool.length > 1 || leaders.length === 0) ctx.publicEvent('vote-lot', `Keine Mehrheit. Das Los entscheidet: ${ctx.name(chosen)}.`, { playerId: chosen });
+  return { kind: 'elect', playerId: chosen };
+}
+
 /** Gewicht einer Stimme laut Regelmodulen (z.B. Hauptmann zählt doppelt). */
 export function voteWeight(ctx: EngineContext, voterId: PlayerId): number {
   const voter = ctx.player(voterId);
@@ -87,12 +102,13 @@ export function voteWeight(ctx: EngineContext, voterId: PlayerId): number {
 
 export function resolveVote(ctx: EngineContext): VoteOutcome {
   const vote = requireVote(ctx);
+  const election = vote.kind === 'election';
   const counts = new Map<PlayerId, number>();
   let abstentions = 0;
   for (const voterId of vote.voters) {
     const ballot = vote.ballots[voterId];
     if (ballot === undefined || ballot === null) abstentions += 1;
-    else counts.set(ballot, (counts.get(ballot) ?? 0) + voteWeight(ctx, voterId));
+    else counts.set(ballot, (counts.get(ballot) ?? 0) + (election ? 1 : voteWeight(ctx, voterId)));
   }
 
   const tally = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -108,6 +124,7 @@ export function resolveVote(ctx: EngineContext): VoteOutcome {
     ctx.publicEvent('vote-ballots', `Stimmen: ${lines.join('; ')}.`);
   }
 
+  if (election) return resolveElection(ctx, vote, tally.filter(([, n]) => n === tally[0]?.[1]).map(([id]) => id));
   if (tally.length === 0) {
     ctx.publicEvent('vote-none', 'Niemand erhält eine Stimme. Heute wird niemand verbannt.');
     return { kind: 'none' };

@@ -108,10 +108,12 @@ function handleAdvance(ctx: EngineContext): void {
     case 'DAY_ANNOUNCEMENT':
       transition(ctx, 'DAY_DISCUSSION');
       break;
-    case 'DAY_DISCUSSION':
-      startVote(ctx, ctx.alivePlayers().map((p) => p.id), 1);
+    case 'DAY_DISCUSSION': {
+      const election = ctx.registry.rules.some((rule) => rule.holdElection?.(ctx));
+      startVote(ctx, ctx.alivePlayers().map((p) => p.id), 1, election ? 'election' : 'lynch');
       transition(ctx, 'DAY_VOTING');
       break;
+    }
     case 'DAY_VOTING':
       closeVote(ctx);
       transition(ctx, 'VOTE_RESOLUTION');
@@ -191,7 +193,13 @@ export function advance(ctx: EngineContext): void {
       case 'VOTE_RESOLUTION': {
         const outcome = resolveVote(ctx);
         if (outcome.kind === 'runoff') {
-          startVote(ctx, outcome.candidates, (state.vote?.round ?? 1) + 1);
+          startVote(ctx, outcome.candidates, (state.vote?.round ?? 1) + 1, state.vote?.kind ?? 'lynch');
+          transition(ctx, 'DAY_VOTING');
+          return;
+        }
+        if (outcome.kind === 'elect') {
+          for (const rule of ctx.registry.rules) rule.onElected?.(ctx, outcome.playerId);
+          startVote(ctx, ctx.alivePlayers().map((p) => p.id), 1);
           transition(ctx, 'DAY_VOTING');
           return;
         }

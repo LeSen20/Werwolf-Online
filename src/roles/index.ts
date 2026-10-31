@@ -3,6 +3,7 @@
  * in BASE_ROLES eintragen (siehe docs/neue-rolle.md).
  */
 import { Registry, type RoleDefinition, type RuleModule } from '../engine';
+import { captainRule } from '../rules/captain';
 import { mixedLoversRule } from '../rules/mixedLovers';
 import { bearTamer, fox, knight } from './neighbors';
 import { cupid } from './cupid';
@@ -31,7 +32,7 @@ export const BASE_ROLES: RoleDefinition[] = [
 ];
 
 /** Optionale, rollenunabhängige Sonderregeln. */
-export const BASE_RULES: RuleModule[] = [mixedLoversRule];
+export const BASE_RULES: RuleModule[] = [mixedLoversRule, captainRule];
 
 export function createDefaultRegistry(): Registry {
   const registry = new Registry();

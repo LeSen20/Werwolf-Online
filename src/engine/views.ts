@@ -49,6 +49,8 @@ export interface PlayerSummary {
   relations: string[];
   /** Todesursache, erst am Spielende sichtbar. */
   deathCause: string | null;
+  /** Öffentliche Abzeichen, z.B. "Hauptmann". */
+  badges: string[];
 }
 
 export interface NamedPlayer {
@@ -72,6 +74,7 @@ export interface DecisionPrompt {
 }
 
 export interface VoteView {
+  kind: 'lynch' | 'election';
   round: number;
   candidates: NamedPlayer[];
   voters: NamedPlayer[];
@@ -81,6 +84,8 @@ export interface VoteView {
 
 export interface PlayerVoteView extends VoteView {
   canVote: boolean;
+  /** Darf mit der Stimme eine zweite Abstimmung verlangen (Stotternder Richter). */
+  canRequestSecondVote: boolean;
   hasVoted: boolean;
   myBallot: PlayerId | null;
   options: NamedPlayer[];
@@ -169,6 +174,7 @@ function summarize(ctx: EngineContext, player: PlayerState, viewer: PlayerState 
     labels: known.get(player.id)?.labels ?? [],
     relations: known.get(player.id)?.relations ?? [],
     deathCause: ctx.state.phase === 'GAME_OVER' && player.death ? ctx.registry.causeLabel(player.death.cause) : null,
+    badges: ctx.registry.rules.flatMap((rule) => rule.badges?.(ctx, player) ?? []),
   };
 }
 
@@ -222,6 +228,7 @@ function buildBaseView(ctx: EngineContext, viewer: PlayerState | null): PublicVi
         : [],
     vote: vote
       ? {
+          kind: vote.kind ?? 'lynch',
           round: vote.round,
           candidates: named(ctx, vote.candidates),
           voters: named(ctx, vote.voters),
@@ -263,6 +270,8 @@ export function buildPlayerView(ctx: EngineContext, playerId: PlayerId): PlayerV
         ? {
             ...base.vote,
             canVote: viewer.alive && vote.voters.includes(viewer.id),
+            canRequestSecondVote:
+              (vote.kind ?? 'lynch') === 'lynch' && ctx.registry.rules.some((rule) => rule.canRequestSecondVote?.(ctx, viewer)),
             hasVoted: Object.hasOwn(vote.ballots, viewer.id),
             myBallot: vote.ballots[viewer.id] ?? null,
             options: named(ctx, ballotOptions(ctx, viewer.id)),

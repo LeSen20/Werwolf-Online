@@ -61,7 +61,7 @@ export function processDeathQueue(ctx: EngineContext): 'done' | 'waiting' {
 
     for (const ability of [...(ctx.role(player).abilities ?? []), ...ctx.registry.ruleAbilities()]) {
       if (ability.trigger !== 'death' || usesLeft(ability, player) === 0) continue;
-      if (player.marks[MARK_SILENCED] === true) continue;
+      if (player.marks[MARK_SILENCED] === true && !ctx.registry.isRuleAbility(ability.id)) continue;
       if (ctx.registry.isRuleAbility(ability.id) && !ability.shouldTrigger) continue;
       if (ability.shouldTrigger && !ability.shouldTrigger(ctx, player, death)) continue;
       deaths.pending.push({ abilityId: ability.id, playerId: player.id });
