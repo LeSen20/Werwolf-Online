@@ -43,7 +43,19 @@ interface NightPass {
   stage: 'cover' | 'turn' | 'done';
   /** Hat der aktuelle Spieler in seinem Zug schon etwas entschieden (echt oder Tarnung)? */
   acted: boolean;
+  /** Nachrichtendurchgang: nur private Neuigkeiten zeigen, keine Entscheidungen. */
+  news: boolean;
 }
+
+/** Private Ereignisse, die nicht als Nachricht erscheinen (interne Stimmen, schon anders gezeigt). */
+const HIDDEN_NOTES = new Set(['group-vote', 'ballot', 'role-assigned', 'judge-request']);
+
+/**
+ * Rollen, deren Wirkung andere Spieler nachts privat benachrichtigt (Ansteckung, Verzauberung,
+ * überlebter Angriff, neues Rudelmitglied). Sind sie im Stapel, bekommt nach jeder Nacht jeder
+ * Mensch das Gerät noch einmal: Die Nachricht kommt sicher an, und niemand sieht, wen sie betrifft.
+ */
+const NEWS_ROLES = new Set(['urwolf', 'piper', 'elder', 'wild-child', 'wolfhound']);
 
 /** Eintrag einer Zwischenseite: Text (Art = Ereignistyp, z.B. 'death') oder Stimmenbalken. */
 type InterstitialItem = { text: string; kind: string } | { tally: TallyRow[]; abstentions: number };
@@ -52,6 +64,8 @@ interface Interstitial {
   title: string;
   items: InterstitialItem[];
   buttonLabel: string;
+  /** Nachtschritt im Modus 'roles': Töne (z.B. Tod) erst nach dem Schließen, nicht während andere schlafen. */
+  deferSounds?: boolean;
 }
 
 /** Ereignisse, die auf Zwischenseiten als Todesnachricht hervorgehoben werden. */
@@ -101,7 +115,6 @@ export class App {
   private revealOpen = false;
   private nightIntroRound = 0;
   private awakeKey: string | null = null;
-  private stepNotes: string[] = [];
   private voterReady: PlayerId | null = null;
   /** Richter: Häkchen für die zweite Abstimmung (übersteht das Neuzeichnen). */
   private secondVoteWish: PlayerId | null = null;
@@ -114,8 +127,18 @@ export class App {
   private nightPass: NightPass | null = null;
   /** Töne, die während der Nachtrunde reihum anfallen; erst danach abspielen (sonst verrät der Zeitpunkt etwas). */
   private deferredSounds: SoundKey[] = [];
-  /** Letztes Ereignis, das ein Spieler in seinem Nachtzug gesehen hat (für "Neu für dich"). */
-  private readonly seenEvents = new Map<PlayerId, number>();
+  /** Private Ereignisse, die ein Mensch schon gesehen hat (für "Neu für dich"). */
+  private readonly seenEvents = new Map<PlayerId, Set<number>>();
+  /** Menschen, die im laufenden Nachtschritt wach sind (Nachtmodus 'roles'). */
+  private readonly stepActors = new Set<PlayerId>();
+  /** Runde, deren Nachtnachrichten schon zugestellt wurden. */
+  private newsRound = 0;
+  /** Doppeltipp-Schutz: Klicks kurz nach einem Bildschirmwechsel ignorieren. */
+  private clickLockUntil = 0;
+  /** Bildschirm, auf dem die Fehlermeldung entstand; beim Wechsel verschwindet sie. */
+  private messageAt = '';
+  /** Zählt Partien hoch: verspätete Bot-Nachrichten einer alten Partie werden verworfen. */
+  private generation = 0;
   private readonly imageSizes = new Map<string, { width: number; height: number }>();
   /** Schlüssel des zuletzt gezeigten Bildschirms: nur ein neuer Bildschirm wird eingeblendet. */
   private lastVisualKey = '';
@@ -124,6 +147,13 @@ export class App {
     this.root = root;
     this.setup = new SetupScreen(this.registry, (request) => this.startGame(request), () => this.render());
     window.addEventListener('resize', () => this.applyBackground());
+    // Versehentliches Neuladen oder Zurückwischen würde die laufende Partie löschen: nachfragen.
+    window.addEventListener('beforeunload', (event) => {
+      if (this.game && this.game.phase !== 'GAME_OVER') {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    });
     // Menü schließen bei Klick daneben oder mit Escape.
     document.addEventListener('click', (event) => {
       if (this.menuOpen && !(event.target instanceof Element && event.target.closest('.menu'))) this.closeMenu();
@@ -131,6 +161,18 @@ export class App {
     document.addEventListener('keydown', (event) => {
       if (this.menuOpen && event.key === 'Escape') this.closeMenu();
     });
+    // Ein Doppeltipp darf nicht den nächsten Bildschirm mitbedienen (z.B. "Ich bin ..." und gleich
+    // "Karte verdecken"): Klicks kurz nach einem Wechsel verwerfen.
+    root.addEventListener(
+      'click',
+      (event) => {
+        if (Date.now() < this.clickLockUntil && event.target instanceof Element && event.target.closest('button')) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      },
+      true,
+    );
   }
 
   private closeMenu(): void {
@@ -160,10 +202,11 @@ export class App {
     // Persönlichkeiten (Sprechstil, Avatar) jede Partie neu verteilen.
     const personas = shuffled(Math.random, PERSONAS);
     const botSetups = request.botIndices.map((index, order) => ({ playerId: `p${index + 1}`, persona: personas[order % personas.length] }));
+    const generation = ++this.generation;
     this.bots =
       botSetups.length > 0
         ? new BotController(this.game, botSetups, {
-            send: (command) => this.botSend(command),
+            send: (command) => this.botSend(command, generation),
             translator: this.translator,
             onChange: () => this.refreshTyping(),
           })
@@ -174,13 +217,15 @@ export class App {
     this.revealOpen = false;
     this.nightIntroRound = 0;
     this.awakeKey = null;
-    this.stepNotes = [];
+    this.stepActors.clear();
+    this.newsRound = 0;
     this.voterReady = null;
     this.interstitial = null;
     this.dispatch({ type: 'START_GAME' });
   }
 
   private newGame(): void {
+    this.generation += 1;
     this.stopTimer();
     if (this.botTimer !== null) window.clearTimeout(this.botTimer);
     this.botTimer = null;
@@ -204,8 +249,11 @@ export class App {
     switch (view.phase) {
       case 'NIGHT_ACTIONS':
         return `night:${view.round}:${view.nightStep?.id ?? ''}`;
-      case 'DAY_VOTING':
-        return `vote:${view.round}:${view.vote?.round ?? 0}`;
+      case 'DAY_VOTING': {
+        // Hauptmannswahl, Abstimmung und zweite Abstimmung des Richters haben dieselbe Rundennummer.
+        const started = view.events.filter((e) => e.type === 'vote-start').length;
+        return `vote:${view.round}:${view.vote?.kind ?? ''}:${started}`;
+      }
       case 'DEATH_RESOLUTION':
         return `death:${view.round}:${view.deathDecisions.map((d) => d.playerId).join(',')}`;
       default:
@@ -229,6 +277,7 @@ export class App {
     const result = game.dispatch(command);
     if (!result.ok) {
       this.message = result.error.message;
+      this.messageAt = this.lastVisualKey;
       return false;
     }
     this.message = null;
@@ -244,8 +293,10 @@ export class App {
   }
 
   /** Chatnachrichten der Bots. Abgelehnte Nachrichten (z.B. Phase vorbei) werden still verworfen. */
-  private botSend(command: Command): DispatchResult {
-    const result = this.game!.dispatch(command);
+  private botSend(command: Command, generation: number): DispatchResult {
+    // Verspätete Nachricht aus einer beendeten Partie (Tippverzögerung, Übersetzung).
+    if (!this.game || generation !== this.generation) return { ok: false, error: { code: 'GAME_OVER', message: 'Partie beendet.' } };
+    const result = this.game.dispatch(command);
     if (result.ok) {
       this.playEventSounds(result.events);
       this.render();
@@ -285,7 +336,7 @@ export class App {
   private playEventSounds(events: GameEvent[]): void {
     const types = new Set(events.filter((e) => e.visibility.kind === 'public').map((e) => e.type));
     const keys = SOUND_SEQUENCE.filter(([type]) => types.has(type)).map(([, key]) => key);
-    if (this.nightPass) {
+    if (this.nightPass || this.interstitial?.deferSounds) {
       for (const key of keys) if (!this.deferredSounds.includes(key)) this.deferredSounds.push(key);
       return;
     }
@@ -297,9 +348,14 @@ export class App {
     keys.forEach((key, index) => setTimeout(() => playSound(key), index * SOUND_GAP_MS));
   }
 
-  /** Nachtrunde reihum beenden und zurückgehaltene Töne abspielen. */
+  /** Nachtrunde reihum beenden; zurückgehaltene Töne spielen am Ende des Zeichnens. */
   private endPass(): void {
     this.nightPass = null;
+  }
+
+  /** Zurückgehaltene Töne abspielen, sobald nichts Nächtliches mehr angezeigt wird. */
+  private flushSounds(): void {
+    if (this.nightPass || this.interstitial?.deferSounds || this.deferredSounds.length === 0) return;
     const keys = SOUND_SEQUENCE.map(([, key]) => key).filter((key) => this.deferredSounds.includes(key));
     this.deferredSounds = [];
     this.playSounds(keys);
@@ -311,24 +367,22 @@ export class App {
     // Nachtrunde reihum: Ergebnisse zeigt der jeweilige Zug selbst.
     if (beforeKey.startsWith('night:') && before.rules.nightMode === 'pass') return;
     if (beforeKey.startsWith('night:')) {
-      // Private Ergebnisse (z.B. Seherin) nur für die gerade wachen Menschen; Bot-Wissen bleibt geheim.
-      const humans = [...actors].filter((id) => !this.isBot(id));
-      this.stepNotes.push(
-        ...events
-          .filter((e) => e.type !== 'group-vote' && e.visibility.kind === 'players' && e.visibility.playerIds.some((id) => humans.includes(id)))
-          .map((e) => e.text),
-      );
-      if (afterKey !== beforeKey && humans.length === 0) {
-        this.stepNotes = [];
-      } else if (afterKey !== beforeKey) {
-        const label = before.nightStep?.label ?? 'Nacht';
-        this.interstitial = {
-          title: label,
-          items: [...this.stepNotes, `${label}: bitte wieder einschlafen und das Gerät zurücklegen.`].map((text) => ({ text, kind: 'note' })),
-          buttonLabel: 'Augen sind geschlossen',
-        };
-        this.stepNotes = [];
-      }
+      for (const id of actors) if (!this.isBot(id)) this.stepActors.add(id);
+      if (afterKey === beforeKey) return;
+      const awake = [...this.stepActors];
+      this.stepActors.clear();
+      if (awake.length === 0) return;
+      // Alle Wachen sehen denselben Bildschirm: nur Nachrichten, die alle betreffen (z.B. Seherin
+      // allein, Rudel gemeinsam). Persönliche Nachrichten folgen einzeln nach der Nacht.
+      const shared = this.unseenNotes(awake[0]).filter((e) => e.visibility.kind === 'players' && awake.every((id) => e.visibility.kind === 'players' && e.visibility.playerIds.includes(id)));
+      for (const id of awake) this.markSeen(id, shared);
+      const label = before.nightStep?.label ?? 'Nacht';
+      this.interstitial = {
+        title: label,
+        items: [...shared.map((e) => e.text), `${label}: bitte wieder einschlafen und das Gerät zurücklegen.`].map((text) => ({ text, kind: 'note' })),
+        buttonLabel: 'Augen sind geschlossen',
+        deferSounds: true,
+      };
       return;
     }
     if ((beforeKey.startsWith('vote:') || beforeKey.startsWith('death:')) && afterKey !== beforeKey) {
@@ -424,7 +478,15 @@ export class App {
     const chat = view ? this.chatPanel(view) : null;
     const visualKey = this.visualKey(view);
     const entering = visualKey !== this.lastVisualKey;
+    // Beim ersten Zeichnen gibt es keinen vorherigen Bildschirm, dessen Doppeltipp abzufangen wäre.
+    if (entering && this.lastVisualKey !== '') this.clickLockUntil = Date.now() + 350;
     this.lastVisualKey = visualKey;
+    // Eine Fehlermeldung gehört zu ihrem Bildschirm (sonst sähe sie der Nächste am Gerät).
+    if (this.message && this.messageAt !== visualKey) this.message = null;
+    // Chat nur mitscrollen, wenn man unten war: Wer ältere Nachrichten liest, wird nicht weggerissen.
+    const oldLog = this.root.querySelector('#chat-log');
+    const stick = !oldLog || oldLog.scrollHeight - oldLog.scrollTop - oldLog.clientHeight < 24;
+    const oldTop = oldLog?.scrollTop ?? 0;
     this.root.replaceChildren(
       h(
         'div',
@@ -438,12 +500,13 @@ export class App {
     // Einblenden nur beim Wechsel, nicht bei jedem Neuzeichnen (Bots schreiben laufend).
     if (entering) this.root.querySelector('main > :first-child')?.classList.add('enter');
     const log = this.root.querySelector('#chat-log');
-    if (log) log.scrollTop = log.scrollHeight;
+    if (log) log.scrollTop = stick ? log.scrollHeight : oldTop;
     if (chatFocused) {
       const input = this.root.querySelector<HTMLInputElement>('#chat-input');
       input?.focus();
       if (input && caret !== null) input.setSelectionRange(caret, caret);
     }
+    this.flushSounds();
     this.syncTimer(view);
     this.scheduleBots(view);
     void this.bots?.observe();
@@ -611,8 +674,14 @@ export class App {
       element.setAttribute('role', 'menuitem');
       return element;
     };
+    // Das Protokoll zeigt öffentliche Ereignisse sofort, auch den Morgen: in der Nachtrunde gesperrt.
+    const logItem = this.nightPass
+      ? h('button', { type: 'button', class: 'secondary', role: 'menuitem', disabled: true }, 'Protokoll (nach der Nacht)')
+      : this.logMode === 'public'
+        ? item('Protokoll ausblenden', setLog('off'))
+        : item('Protokoll anzeigen', setLog('public'));
     const items = [
-      this.logMode === 'public' ? item('Protokoll ausblenden', setLog('off')) : item('Protokoll anzeigen', setLog('public')),
+      logItem,
       DEBUG ? (this.logMode === 'debug' ? item('Debug-Protokoll ausblenden', setLog('off')) : item('Debug-Protokoll (geheim)', setLog('debug'))) : null,
       view.phase !== 'GAME_OVER'
         ? item('Partie abbrechen', () => {
@@ -627,6 +696,7 @@ export class App {
 
   private logPanel(view: PublicView | null): HTMLElement | null {
     if (!this.game || !view || this.logMode === 'off') return null;
+    if (this.nightPass && this.logMode === 'public') return null;
     return this.logMode === 'public'
       ? eventLog(view.events, 'Protokoll', 'Alles, was alle wissen dürfen.')
       : eventLog(this.game.allEvents(), 'Debug-Protokoll', 'Enthält geheime Informationen.');
@@ -634,6 +704,7 @@ export class App {
 
   private screen(view: PublicView | null): Child {
     if (!this.game || !view) return this.setup.render();
+    if (!this.nightPass && !this.interstitial) this.startNews(view);
     if (this.nightPass && !this.interstitial) return this.passScreen(view);
     if (this.interstitial) {
       const { title, items, buttonLabel } = this.interstitial;
@@ -734,6 +805,7 @@ export class App {
       ],
       [
         button('Karte verdecken und weitergeben', () => {
+          this.markSeen(current.id);
           this.revealOpen = false;
           this.revealIndex += 1;
           this.render();
@@ -790,12 +862,53 @@ export class App {
   /** Entscheidungen aller aktuell handelnden Spieler (Nachtschritt oder Todesfolge). */
   // ---------------------------------------------------------------- Nachtrunde reihum
 
-  private startPass(view: PublicView, pass: number): void {
+  /**
+   * Durchgang starten. Spätere Durchgänge einer Nacht behalten die Reihenfolge des ersten: Wer in
+   * der Nacht gestorben ist, bekommt das Gerät trotzdem (sonst verriete das Überspringen den Toten
+   * und dass die Nacht schon entschieden ist).
+   */
+  private startPass(view: PublicView, pass: number, order?: PlayerId[], news = false): void {
+    const seats =
+      order ??
+      [...view.players]
+        .filter((p) => p.alive && !this.isBot(p.id))
+        .sort((a, b) => a.seat - b.seat)
+        .map((p) => p.id);
+    this.nightPass = { round: view.round, pass, order: seats, index: 0, stage: 'cover', acted: false, news };
+  }
+
+  /** Nachrichtendurchgang nötig? Hängt nur vom Kartenstapel ab, nicht von verteilten Rollen. */
+  private needsNewsPass(view: PublicView): boolean {
+    return view.deck.some((entry) => NEWS_ROLES.has(entry.roleId));
+  }
+
+  /**
+   * Nachtmodus 'roles': Nach der Nacht werden Menschen mit persönlicher Nachricht (z.B. angesteckt,
+   * verzaubert) einzeln geweckt, bevor der Tag beginnt. Wie beim Erzähler: Alle anderen schlafen.
+   */
+  private startNews(view: PublicView): void {
+    if (view.rules.nightMode === 'pass' || this.newsRound >= view.round) return;
+    const nightOver = view.phase === 'DAY_ANNOUNCEMENT' || (view.phase === 'DEATH_RESOLUTION' && view.time === 'night');
+    if (!nightOver) return;
+    this.newsRound = view.round;
     const order = [...view.players]
-      .filter((p) => p.alive && !this.isBot(p.id))
+      .filter((p) => !this.isBot(p.id) && this.unseenNotes(p.id).length > 0)
       .sort((a, b) => a.seat - b.seat)
       .map((p) => p.id);
-    this.nightPass = { round: view.round, pass, order, index: 0, stage: 'cover', acted: false };
+    if (order.length > 0) this.startPass(view, 1, order, true);
+  }
+
+  /** Private Nachrichten, die ein Mensch noch nicht gesehen hat. */
+  private unseenNotes(playerId: PlayerId): GameEvent[] {
+    const seen = this.seenEvents.get(playerId);
+    return this.game!.viewFor(playerId).events.filter((e) => e.visibility.kind === 'players' && !HIDDEN_NOTES.has(e.type) && !seen?.has(e.id));
+  }
+
+  /** Nachrichten als gesehen merken (ohne Liste: alles, was der Spieler bisher sehen kann). */
+  private markSeen(playerId: PlayerId, events?: GameEvent[]): void {
+    const seen = this.seenEvents.get(playerId) ?? new Set<number>();
+    for (const e of events ?? this.game!.viewFor(playerId).events) seen.add(e.id);
+    this.seenEvents.set(playerId, seen);
   }
 
   /** Runde 2 hängt nur vom Kartenstapel ab, nicht davon, wer welche Rolle hat (sonst verriete sie etwas). */
@@ -811,13 +924,6 @@ export class App {
     return own.pending.filter((prompt) => !prompt.group?.some((m) => m.playerId === own.self.id && m.targets !== null));
   }
 
-  /** Private Nachrichten dieser Nacht, die der Spieler noch nicht gesehen hat. */
-  private newNotes(own: PlayerView, round: number): string[] {
-    const seen = this.seenEvents.get(own.self.id) ?? -1;
-    return own.events
-      .filter((e) => e.id > seen && e.round === round && e.visibility.kind === 'players' && e.type !== 'group-vote' && e.type !== 'ballot')
-      .map((e) => e.text);
-  }
 
   private passScreen(view: PublicView): Child {
     const pass = this.nightPass!;
@@ -834,7 +940,11 @@ export class App {
       return handoff({
         title,
         name: own.self.name,
-        note: pass.pass > 1 ? `${pass.pass}. Durchgang: Jetzt sind Rollen dran, die auf andere warten. Alle anderen halten die Augen geschlossen.` : 'Alle anderen halten die Augen geschlossen.',
+        note: pass.news
+          ? 'Neuigkeiten der Nacht. Alle anderen halten die Augen geschlossen.'
+          : pass.pass > 1
+            ? `${pass.pass}. Durchgang: Jetzt sind Rollen dran, die auf andere warten. Alle anderen halten die Augen geschlossen.`
+            : 'Alle anderen halten die Augen geschlossen.',
         showBack: true,
         onReady: () => {
           pass.stage = 'turn';
@@ -843,10 +953,13 @@ export class App {
       });
     }
     const header = whoAmI(own);
-    const open = game.phase === 'NIGHT_ACTIONS' ? this.openPrompts(own) : [];
+    // Neues zuerst: z.B. "Du gehörst jetzt zu den Werwölfen" vor der Wahl mit dem Rudel.
+    const notes = this.unseenNotes(playerId).map((e) => h('p', { class: 'note' }, e.text));
+    const open = game.phase === 'NIGHT_ACTIONS' && !pass.news ? this.openPrompts(own) : [];
     if (pass.stage === 'turn' && open.length > 0) {
       return panel(title, [
         header,
+        ...notes,
         ...open.map((prompt) =>
           promptForm(
             prompt,
@@ -859,7 +972,7 @@ export class App {
         ),
       ]);
     }
-    if (pass.stage === 'turn' && !pass.acted) {
+    if (pass.stage === 'turn' && !pass.acted && !pass.news) {
       // Tarnaufgabe: dauert ungefähr so lange wie eine echte Entscheidung.
       const others = own.players.filter((p) => p.alive && p.id !== playerId).map((p) => ({ id: p.id, name: p.name }));
       const decoy: DecisionPrompt = {
@@ -877,6 +990,7 @@ export class App {
       };
       return panel(title, [
         header,
+        ...notes,
         promptForm(
           decoy,
           () => {
@@ -888,10 +1002,9 @@ export class App {
         ),
       ]);
     }
-    const notes = this.newNotes(own, pass.round);
-    return panel(title, [header, ...notes.map((line) => h('p', { class: 'note' }, line)), notes.length === 0 ? h('p', { class: 'hint' }, 'Nichts Neues für dich.') : null], [
+    return panel(title, [header, ...notes, notes.length === 0 ? h('p', { class: 'hint' }, 'Nichts Neues für dich.') : null], [
       button('Augen schließen und Gerät weitergeben', () => {
-        this.seenEvents.set(playerId, Math.max(-1, ...own.events.map((e) => e.id)));
+        this.markSeen(playerId, this.unseenNotes(playerId));
         pass.index += 1;
         pass.stage = 'cover';
         pass.acted = false;
@@ -905,14 +1018,26 @@ export class App {
     const pass = this.nightPass!;
     const game = this.game!;
     const waiting = panel(`Nacht ${pass.round}`, [h('p', { class: 'narration' }, 'Die Nacht ist noch nicht vorbei', h('span', { class: 'dots', 'aria-hidden': 'true' })), h('p', null, 'Alle halten die Augen geschlossen.')]);
-    const botsBusy = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => this.isBot(p.playerId));
-    const humansOpen = game.phase === 'NIGHT_ACTIONS' && game.pendingDecisions().some((p) => !this.isBot(p.playerId));
+    const nightOpen = game.phase === 'NIGHT_ACTIONS';
+    // Nur warten, wenn ein Bot jetzt handeln kann. Warten Bots auf einen Menschen (z.B. Rudel mit
+    // neuem Mitglied), geht es mit dem nächsten Durchgang weiter, sonst hinge die Nacht.
+    const botsBusy = nightOpen && (this.bots?.nextDecision() ?? null) !== null;
+    const humansOpen = nightOpen && game.pendingDecisions().some((p) => !this.isBot(p.playerId));
     if (botsBusy) return waiting;
-    if ((pass.pass === 1 && this.needsSecondPass(view, pass.round)) || humansOpen) {
-      this.startPass(view, pass.pass + 1);
+    if (!pass.news && ((pass.pass === 1 && this.needsSecondPass(view, pass.round)) || humansOpen)) {
+      this.startPass(view, pass.pass + 1, pass.order);
       this.nightPass!.round = pass.round;
       return this.passScreen(view);
     }
+    // Nach der Nacht: Nachrichten (z.B. Ansteckung) sicher zustellen, falls der Stapel das erfordert.
+    if (!pass.news && !nightOpen && view.rules.nightMode === 'pass' && this.needsNewsPass(view)) {
+      this.newsRound = pass.round;
+      this.startPass(view, pass.pass + 1, pass.order, true);
+      this.nightPass!.round = pass.round;
+      return this.passScreen(view);
+    }
+    if (nightOpen) return waiting;
+    this.newsRound = Math.max(this.newsRound, pass.round);
     this.endPass();
     return h('div', null, this.screen(view));
   }
@@ -961,13 +1086,18 @@ export class App {
       const names = deciding.map((id) => game.publicView().players.find((p) => p.id === id)?.name ?? id);
       sections.push(h('p', { class: 'narration' }, `${names.join(', ')} ${names.length === 1 ? 'entscheidet' : 'entscheiden'} ...`));
     }
+    // Rolle und geheimes Wissen nur zeigen, wenn genau ein Mensch allein wach ist. Todesfolgen sehen
+    // alle (z.B. ein sterbender Hauptmann, der Werwolf ist), und mehrere Wache (z.B. ein Liebespaar)
+    // dürfen ihre Rollen nicht gegenseitig erfahren.
+    const humanGroups = [...groups.values()].some((members) => members.some((id) => !this.isBot(id)));
+    const alone = game.phase === 'NIGHT_ACTIONS' && actorIds.length === 1 && !humanGroups;
     for (const playerId of actorIds) {
       const own = game.viewFor(playerId);
       sections.push(
         h(
           'section',
           { class: 'actor' },
-          whoAmI(own),
+          alone ? whoAmI(own) : h('h3', null, own.self.name),
           own.pending
             .filter((prompt) => !groups.has(prompt.abilityId))
             .map((prompt) =>

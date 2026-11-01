@@ -38,7 +38,10 @@ interface SetupState {
   /** Je Spieler: true = Bot. */
   bots: boolean[];
   mode: 'auto' | 'manual';
+  /** Werwölfe insgesamt, Sonderwölfe (z.B. Urwolf) eingerechnet. */
   werewolves: number;
+  /** Von Hand geändert: dann nicht mehr an die Spielerzahl anpassen. */
+  werewolvesSet: boolean;
   specials: RoleId[];
   counts: Record<RoleId, number>;
   rules: GameRules;
@@ -117,6 +120,7 @@ export class SetupScreen {
       bots,
       mode: 'auto',
       werewolves: suggestWerewolfCount(names.length),
+      werewolvesSet: false,
       specials: ['seer', 'witch', 'hunter', 'cupid'],
       counts: {},
       rules: { ...DEFAULT_RULES, nightMode: 'pass' },
@@ -135,10 +139,23 @@ export class SetupScreen {
     this.renewBotNames();
   }
 
+  /** Ausgewählte Sonderrollen der Werwölfe (z.B. Urwolf); sie zählen zur Anzahl der Werwölfe. */
+  private specialWolves(): number {
+    return this.state.specials
+      .filter((id) => this.registry.hasRole(id) && this.registry.getRole(id).faction === 'werewolves')
+      .reduce((sum, id) => sum + (this.registry.getRole(id).copies ?? 1), 0);
+  }
+
   private deck(): Record<RoleId, number> {
     const s = this.state;
     if (s.mode === 'manual') return { ...s.counts };
-    return buildAutoDeck(this.registry, { playerCount: s.names.length, werewolves: s.werewolves, specialRoles: s.specials });
+    const plain = Math.max(0, s.werewolves - this.specialWolves());
+    return buildAutoDeck(this.registry, { playerCount: s.names.length, werewolves: plain, specialRoles: s.specials });
+  }
+
+  /** Vorschlag für die Werwölfe der Spielerzahl folgen lassen, solange niemand ihn geändert hat. */
+  private playersChanged(): void {
+    if (!this.state.werewolvesSet) this.state.werewolves = suggestWerewolfCount(this.state.names.length);
   }
 
   buildConfig(): GameConfigInput {
@@ -191,19 +208,29 @@ export class SetupScreen {
       .filter(([, n]) => n > 0)
       .map(([id, n]) => ({ name: this.registry.hasRole(id) ? this.registry.getRole(id).name : id, n }));
     const total = cards.reduce((sum, card) => sum + card.n, 0);
+    // Nicht blockierend: Gewinnen die Werwölfe womöglich schon nach der ersten Nacht?
+    const players = this.state.names.length;
+    const wolves = Object.entries(config.roles).reduce((sum, [id, n]) => sum + (this.registry.hasRole(id) && this.registry.getRole(id).faction === 'werewolves' ? n : 0), 0);
+    const kills = 1 + ((config.roles['big-bad-wolf'] ?? 0) > 0 ? 1 : 0);
+    const warning = issues.length === 0 && wolves * 2 >= players - kills ? `Achtung: ${wolves} Werwölfe bei ${players} Spielern könnten schon nach der ersten Nacht gewinnen.` : null;
     this.summary?.replaceChildren(
       h('p', { class: 'deck-title' }, `Kartenstapel (${total} Karten)`),
       cards.length > 0
         ? h('ul', { class: 'deck' }, cards.map((card) => h('li', { class: 'tag' }, card.n > 1 ? `${card.name} ×${card.n}` : card.name)))
         : h('p', { class: 'hint' }, 'Noch keine Karten.'),
       ...(issues.length > 0 ? [h('ul', { class: 'issues' }, issues.map((issue) => h('li', null, issue)))] : []),
+      ...(this.state.mode === 'auto' && this.specialWolves() > this.state.werewolves
+        ? [h('p', { class: 'issues' }, `Mehr Sonderwölfe gewählt als Werwölfe eingestellt: Es spielen ${this.specialWolves()} Werwölfe.`)]
+        : []),
+      ...(warning ? [h('p', { class: 'issues' }, warning)] : []),
     );
-    const players = this.state.names.length;
     if (this.rolesTab) this.rolesTab.textContent = `Rollen (${total})`;
     this.status?.replaceChildren(
       issues.length > 0
         ? h('span', { class: 'start-issue' }, issues.length > 1 ? `${issues[0]} (+${issues.length - 1})` : issues[0])
-        : h('span', null, `${players} Spieler · ${total} Karten · bereit`),
+        : warning
+          ? h('span', { class: 'start-issue' }, warning)
+          : h('span', null, `${players} Spieler · ${total} Karten · bereit`),
     );
     if (this.startButton) this.startButton.disabled = issues.length > 0;
   }
@@ -335,6 +362,7 @@ export class SetupScreen {
                   onclick: () => {
                     s.names.splice(index, 1);
                     s.bots.splice(index, 1);
+                    this.playersChanged();
                     this.rerender();
                   },
                 },
@@ -348,12 +376,14 @@ export class SetupScreen {
         button('Spieler hinzufügen', () => {
           s.names.push(this.defaultName());
           s.bots.push(false);
+          this.playersChanged();
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
         button('Bot hinzufügen', () => {
           s.names.push('');
           s.bots.push(true);
           s.names[s.names.length - 1] = this.botName(s.names.length - 1);
+          this.playersChanged();
           this.rerender();
         }, 'secondary', s.names.length >= MAX_PLAYERS),
         button('Neue Bot-Namen', () => {
@@ -368,7 +398,15 @@ export class SetupScreen {
     const roleFields =
       s.mode === 'auto'
         ? [
-            h('label', { class: 'field' }, 'Anzahl Werwölfe', numberInput(s.werewolves, 0, (n) => (s.werewolves = n), 'Anzahl Werwölfe')),
+            h(
+              'label',
+              { class: 'field' },
+              'Anzahl Werwölfe (Urwolf, Großer böser Wolf und Weißer Werwolf zählen mit)',
+              numberInput(s.werewolves, 0, (n) => {
+                s.werewolves = n;
+                s.werewolvesSet = true;
+              }, 'Anzahl Werwölfe'),
+            ),
             h('p', { class: 'hint' }, 'Sonderrollen (je eine Karte, der Rest wird mit Dorfbewohnern aufgefüllt):'),
             ...byEdition(specials).map(([title, list]) =>
               h(

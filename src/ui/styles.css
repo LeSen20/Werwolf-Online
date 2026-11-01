@@ -69,6 +69,8 @@ body[data-theme='gameOver'] {
 body {
   margin: 0;
   min-height: 100vh;
+  /* Kein Neuladen durch Herunterziehen (Android): Das würde die Partie löschen. */
+  overscroll-behavior-y: contain;
   color: var(--page-text);
   background: var(--page);
   transition: background-color 0.4s;
@@ -277,6 +279,8 @@ button {
     inset -2px -2px 0 rgba(0, 0, 0, 0.25),
     3px 3px 0 var(--line);
   cursor: pointer;
+  /* Kein Doppeltipp-Zoom auf Handys. */
+  touch-action: manipulation;
 }
 
 button:hover:not(:disabled) {
