@@ -9,7 +9,7 @@ Daraus folgt:
 | Design-System aus dem Repo | Claude Design | 1 |
 | Bildschirme verbessern, dann an Claude Code übergeben | Claude Design | 2 |
 | Hintergründe, Avatare, Symbole, Logo | Claude Design, als HTML-Seite mit PNG-Download (Umweg, nicht getestet) | 3 |
-| Rollenkarten (20) | derselbe Weg wie bei der Seherin, nicht Claude Design | 4 |
+| Rollenkarten (19) | derselbe Weg wie bei der Seherin, nicht Claude Design | 4 |
 
 Die Rollenkarten brauchen deinen Python-Generator, ein PNG-Sprite-Sheet und Aseprite-JSON. Das liefert Claude Design laut Exportliste nicht.
 
@@ -165,7 +165,6 @@ Technik, sonst passt die Karte nicht ins Spiel:
 
 | Datei | Titel | Kartentext | Medaillon | Motiv | Clip |
 | --- | --- | --- | --- | --- | --- |
-| `hunter` | Jäger | Stirbt er, nimmt er sofort einen anderen Spieler mit in den Tod. Er siegt mit dem Dorf. | Haus | Jäger mit Armbrust am Waldrand, Geweih an der Hütte | `aim`: legt an, Bolzen fliegt |
 | `cupid` | Amor | In der ersten Nacht verliebt er zwei Spieler. Stirbt einer, stirbt auch der andere. | Haus | Junge Gestalt mit Bogen im Rosengarten | `arrow`: Herzpfeil, zwei Herzen leuchten |
 | `thief` | Dieb | In der ersten Nacht darf er seine Karte gegen eine der zwei übrigen tauschen. | Haus | Kapuzengestalt mit Laterne in der Gasse, zwei verdeckte Karten auf einer Kiste | `swap`: tauscht die Karte |
 | `healer` | Heiler | Schützt jede Nacht einen Spieler vor den Werwölfen, nie zweimal nacheinander denselben. | Haus | Heiler in der Kräuterkammer mit Mörser | `heal`: schützender Lichtkreis |
